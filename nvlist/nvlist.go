@@ -1,10 +1,9 @@
 package nvlist
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
-	"math"
+	"io"
 	"reflect"
 )
 
@@ -22,204 +21,6 @@ const (
 	BIG_ENDIAN      = 0x00
 	LITTLE_ENDIAN   = 0x01
 )
-
-// Marshal serializes the given data into a ZFS-style nvlist
-func Marshal(val interface{}) ([]byte, error) {
-	writer := nvlistWriter{}
-	if err := writer.writeNvHeader(); err != nil {
-		return nil, err
-	}
-	if err := writer.writeNvPairs(reflect.ValueOf(val)); err != nil {
-		return nil, err
-	}
-	return writer.buf.Bytes(), nil
-}
-
-// Unmarshal parses a ZFS-style nvlist in native encoding and with any endianness
-func Unmarshal(data []byte, val interface{}) error {
-	s := nvlistReader{
-		nvlist: data,
-	}
-	if err := s.readNvHeader(); err != nil {
-		return err
-	}
-	return s.readPairs(val)
-}
-
-type nvlistWriter struct {
-	buf        bytes.Buffer
-	nvlist     []byte
-	endianness binary.ByteOrder
-	flags      uint32
-	version    int32
-}
-
-func (w *nvlistWriter) WriteByte(c byte) error {
-	return w.buf.WriteByte(c)
-}
-
-func (w *nvlistWriter) skipN(len int) {
-	for i := 0; i < len; i++ {
-		w.buf.WriteByte(0x0)
-	}
-}
-
-func (w *nvlistWriter) skipToAlign() {
-	var len int
-	if w.buf.Len()%8 != 0 {
-		len = 8 - (w.buf.Len() % 8)
-	}
-	for i := 0; i < len; i++ {
-		w.buf.WriteByte(0x0)
-	}
-}
-
-func (w *nvlistWriter) writeInt(val interface{}) error {
-	return binary.Write(&w.buf, w.endianness, val)
-}
-
-func (w *nvlistWriter) writeString(str string) error {
-	// TODO: Filter for null bytes
-	_, err := w.buf.WriteString(str)
-	return err
-}
-
-func (w *nvlistWriter) writeNvHeader() error {
-	if err := w.WriteByte(NATIVE_ENCODING); err != nil {
-		return err
-	}
-	// TODO: Actually deal with BE
-	if err := w.WriteByte(LITTLE_ENDIAN); err != nil {
-		return err
-	}
-	w.endianness = binary.LittleEndian
-
-	w.skipN(2) // reserved
-
-	w.writeInt(w.version)
-	w.writeInt(w.flags)
-
-	return nil
-}
-
-func unpackVal(v reflect.Value) reflect.Value {
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-	if v.Kind() == reflect.Interface {
-		v = v.Elem()
-	}
-	return v
-}
-
-func (w *nvlistWriter) writeNvPairs(v reflect.Value) error {
-	v = unpackVal(v)
-
-	var names []string
-	var vals []reflect.Value
-
-	switch v.Kind() {
-	case reflect.Map:
-		keys := v.MapKeys()
-		for _, key := range keys {
-			if key.Kind() != reflect.String {
-				return ErrInvalidValue
-			}
-			names = append(names, key.String())
-			vals = append(vals, unpackVal(v.MapIndex(key)))
-		}
-	case reflect.Struct:
-		for i := 0; i < v.NumField(); i++ {
-			names = append(names, v.Type().Field(i).Name)
-			vals = append(vals, unpackVal(v.Field(i)))
-		}
-	default:
-		return ErrInvalidValue
-	}
-	for i := 0; i < len(names); i++ {
-		nameLen := len(names[i]) + 1
-		if nameLen > math.MaxInt16 {
-			return ErrInvalidValue
-		}
-		nvp := nvpair{
-			Size:       0,
-			Name_sz:    int16(nameLen),
-			Value_elem: 0,
-			Type:       0,
-		}
-
-		w.writeInt(nvp.Size)
-		w.writeInt(nvp.Name_sz)
-		w.writeInt(nvp.Value_elem)
-		w.writeInt(nvp.Type)
-
-		w.buf.WriteString(names[i])
-		w.WriteByte(0x00)
-		w.skipToAlign()
-
-		t := vals[i].Kind()
-		switch t {
-		case reflect.Int8, reflect.Uint8, reflect.Int16, reflect.Uint16, reflect.Int32, reflect.Uint32, reflect.Int64, reflect.Uint64, reflect.Float64:
-			if err := w.writeInt(vals[i].Interface()); err != nil {
-				return err
-			}
-		case reflect.Bool:
-			var val int32
-			if vals[i].Bool() {
-				val = 1
-			}
-			if err := w.writeInt(val); err != nil {
-				return err
-			}
-		case reflect.Map, reflect.Struct:
-			// TODO: Write header
-			w.skipN(8 + 8) // 8 bytes header + 8 bytes pointer
-			if err := w.writeNvPairs(vals[i]); err != nil {
-				return nil
-			}
-		case reflect.String:
-			w.writeString(vals[i].String())
-		case reflect.Array, reflect.Slice:
-			nvp.Value_elem = int32(vals[i].Len()) // TODO: Might be a downcast
-			switch vals[i].Type().Elem().Kind() { // TODO: Enhanced type unpacking
-			case reflect.Int8, reflect.Uint8, reflect.Int16, reflect.Uint16, reflect.Int32, reflect.Uint32, reflect.Int64, reflect.Uint64:
-				for j := 0; j < vals[i].Len(); j++ {
-					if err := w.writeInt(vals[i].Index(j).Interface()); err != nil {
-						return err
-					}
-				}
-			case reflect.Bool:
-				for j := 0; j < vals[i].Len(); j++ {
-					var val int32
-					if vals[i].Index(j).Bool() {
-						val = 1
-					}
-					if err := w.writeInt(val); err != nil {
-						return err
-					}
-				}
-			case reflect.String:
-				for j := 0; j < vals[i].Len(); j++ {
-					w.writeString(vals[i].Index(j).String())
-				}
-			case reflect.Struct, reflect.Map:
-				w.skipN((8 + 8) * vals[i].Len()) // TODO: First 8 bytes are technically nvlist header
-				for j := 0; j < vals[i].Len(); j++ {
-					if err := w.writeNvPairs(vals[i].Index(j)); err != nil {
-						return err
-					}
-				}
-			default:
-				return ErrInvalidValue
-			}
-		default:
-			return ErrInvalidValue
-		}
-		w.skipToAlign()
-	}
-	w.skipN(4) // 4 byte trailer
-	return nil
-}
 
 type nvlistReader struct {
 	nvlist      []byte
@@ -294,6 +95,7 @@ func (r *nvPairReader) Read(p []byte) (n int, err error) {
 		n = len(p)
 	} else {
 		n = r.startByte + r.sizeBytes - r.currentByte
+		err = io.EOF
 	}
 	for i := 0; i < n; i++ {
 		p[i] = r.nvlist.nvlist[r.currentByte+i]

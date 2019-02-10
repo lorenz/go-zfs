@@ -1,7 +1,7 @@
 package ioctl
 
 type Cmd struct {
-	Name              [4096]int8
+	Name              [4096]byte
 	Nvlist_src        uint64
 	Nvlist_src_size   uint64
 	Nvlist_dst        uint64

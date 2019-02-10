@@ -34,4 +34,10 @@ func TestMarshal(t *testing.T) {
 		t.Error(err)
 	}
 	ioutil.WriteFile("test-data-out.bin", out, 0644)
+	test2 := new(interface{})
+	if err := Unmarshal(out, test2); err != nil {
+		t.Error(err)
+	}
+	res, _ := json.MarshalIndent(test, "", "\t")
+	fmt.Println(string(res))
 }
