@@ -8,7 +8,9 @@ import (
 
 // Marshal serializes the given data into a ZFS-style nvlist
 func Marshal(val interface{}) ([]byte, error) {
-	writer := nvlistWriter{}
+	writer := nvlistWriter{
+		flags: uniqueNameFlag,
+	}
 	if err := writer.writeNvHeader(); err != nil {
 		return nil, err
 	}
@@ -22,7 +24,6 @@ func Marshal(val interface{}) ([]byte, error) {
 func Unmarshal(data []byte, val interface{}) error {
 	s := nvlistReader{
 		nvlist: data,
-		flags:  uniqueNameFlag,
 	}
 	if err := s.readNvHeader(); err != nil {
 		return err
@@ -109,9 +110,15 @@ func (w *nvlistWriter) writeNvHeader() error {
 
 func unpackVal(v reflect.Value) reflect.Value {
 	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return reflect.Value{}
+		}
 		v = v.Elem()
 	}
 	if v.Kind() == reflect.Interface {
+		if v.IsNil() {
+			return reflect.Value{}
+		}
 		v = v.Elem()
 	}
 	return v
@@ -167,6 +174,11 @@ func (w *nvlistWriter) writeNvlistHeader() {
 func (w *nvlistWriter) writeNvPairs(v reflect.Value) error {
 	v = unpackVal(v)
 
+	if !v.IsValid() {
+		// Null pointer
+		return nil
+	}
+
 	var names []string
 	var vals []reflect.Value
 
@@ -177,17 +189,30 @@ func (w *nvlistWriter) writeNvPairs(v reflect.Value) error {
 			if key.Kind() != reflect.String {
 				return ErrInvalidValue
 			}
-			names = append(names, key.String())
-			vals = append(vals, unpackVal(v.MapIndex(key)))
+			val := unpackVal(v.MapIndex(key))
+			if val.IsValid() {
+				names = append(names, key.String())
+				vals = append(vals, val)
+			}
 		}
 	case reflect.Struct:
+		t := v.Type()
 		for i := 0; i < v.NumField(); i++ {
-			names = append(names, v.Type().Field(i).Name)
-			vals = append(vals, unpackVal(v.Field(i)))
+			name := t.Field(i).Tag.Get("nvlist")
+			val := unpackVal(v.Field(i))
+			if val.IsValid() {
+				if name == "" {
+					names = append(names, t.Field(i).Name)
+				} else {
+					names = append(names, name)
+				}
+				vals = append(vals, val)
+			}
 		}
 	default:
 		return ErrInvalidValue
 	}
+
 	for i := 0; i < len(names); i++ {
 		nameLen := len(names[i]) + 1
 		if nameLen > math.MaxInt16 {
@@ -196,7 +221,7 @@ func (w *nvlistWriter) writeNvPairs(v reflect.Value) error {
 		nvp := nvpair{
 			Size:       0,
 			Name_sz:    int16(nameLen),
-			Value_elem: 0,
+			Value_elem: 1,
 			Type:       0,
 		}
 
@@ -220,6 +245,7 @@ func (w *nvlistWriter) writeNvPairs(v reflect.Value) error {
 			w.endNvPair(nvp)
 		case reflect.Bool:
 			nvp.Type = typeBoolean
+			nvp.Value_elem = 0
 			/* Only for boolean values
 			var val int32
 			if vals[i].Bool() {

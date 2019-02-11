@@ -10,7 +10,7 @@ type Cmd struct {
 	Pad_cgo_0         [3]byte
 	Pad2              int32
 	History           uint64
-	Value             [8192]int8
+	Value             [8192]byte
 	String            [256]int8
 	Guid              uint64
 	Nvlist_conf       uint64
@@ -37,7 +37,6 @@ type Cmd struct {
 	Createtxg         uint64
 	Stat              Stat
 }
-type DMUObjectType uint32
 type DMUObjectSetStats struct {
 	Num_clones   uint64
 	Creation_txg uint64
@@ -181,4 +180,37 @@ const (
 	ZFS_IOC_FREEBSD Ioctl = ('Z' << 8) + 0xC0 + iota
 
 	ZFS_IOC_LAST
+)
+
+const (
+	StateUnknown = iota
+	StateClosed
+	StateOffline
+	StateRemoved
+	StateCantOpen
+	StateFaulted
+	StateDegraded
+	StateHealthy
+)
+
+type State uint64
+
+const (
+	FailWait = iota
+	FailContinue
+	FailPanic
+)
+
+type FailMode uint64
+
+type ObjectType int32
+
+const (
+	ObjectTypeNone = ObjectType(iota)
+	ObjectTypeMeta
+	ObjectTypeZFS
+	ObjectTypeZvol
+	ObjectTypeOther
+	ObjectTypeAny
+	ObjectTypeNumtypes
 )

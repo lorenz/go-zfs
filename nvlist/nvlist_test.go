@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"testing"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 func TestUnmarshal(t *testing.T) {
-	data, err := ioutil.ReadFile("test-data.bin")
+	data, err := ioutil.ReadFile("zpool.cache")
 	if err != nil {
 		t.Error(err)
 	}
@@ -16,8 +18,9 @@ func TestUnmarshal(t *testing.T) {
 	if err := Unmarshal(data, test); err != nil {
 		t.Error(err)
 	}
-	res, _ := json.MarshalIndent(test, "", "\t")
-	fmt.Println(string(res))
+	//res, _ := json.MarshalIndent(test, "", "\t")
+	//mt.Println(string(res))
+	spew.Dump(test)
 }
 
 func TestMarshal(t *testing.T) {
