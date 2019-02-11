@@ -2,12 +2,14 @@ package ioctl
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 )
 
 func TestSequence(t *testing.T) {
 	// Clean everything out
 	Destroy("test1/test5@snap1", ObjectTypeAny, false)
+	Destroy("test1/test5@snap2", ObjectTypeAny, false)
 	Destroy("test1/test6@snap1", ObjectTypeAny, false)
 	Destroy("test1/test5", ObjectTypeAny, false)
 	Destroy("test1/test6", ObjectTypeAny, false)
@@ -32,7 +34,21 @@ func TestSequence(t *testing.T) {
 	if n == 0 {
 		t.Error(errors.New("size of snaphsot is 0"))
 	}
+	if err := Snapshot([]string{"test1/test5@snap2"}, "test1", nil); err != nil {
+		t.Error(err)
+	}
+	n, err = SendSpace("test1/test5@snap2", &SendOptions{From: "test1/test5@snap1"})
+	if err != nil {
+		t.Error(err)
+	}
+	fmt.Println(n)
+	if n == 0 {
+		t.Error(errors.New("size of snaphsot is 0"))
+	}
 	if err := Destroy("test1/test5@snap1", ObjectTypeAny, false); err != nil {
+		t.Error(err)
+	}
+	if err := Destroy("test1/test5@snap2", ObjectTypeAny, false); err != nil {
 		t.Error(err)
 	}
 	if err := Destroy("test1/test6@snap2", ObjectTypeAny, false); err != nil {
