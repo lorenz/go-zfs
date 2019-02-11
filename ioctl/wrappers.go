@@ -150,3 +150,21 @@ func Destroy(name string, t ObjectType, deferred bool) error {
 	}
 	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_DESTROY, name, cmd, nil, nil)
 }
+
+type SendOptions struct {
+	From        string `nvlist:"from,omitempty"`
+	LargeBlocks bool   `nvlist:"largeblockok"`
+	Embed       bool   `nvlist:"embedok"`
+	Compress    bool   `nvlist:"compress"`
+}
+
+func SendSpace(name string, options *SendOptions) (uint64, error) {
+	cmd := &Cmd{}
+	var spaceRes struct {
+		Space uint64 `nvlist:"space"`
+	}
+	if err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_SEND_SPACE, name, cmd, options, &spaceRes); err != nil {
+		return 0, err
+	}
+	return spaceRes.Space, nil
+}

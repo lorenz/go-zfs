@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"math"
 	"reflect"
+	"strings"
 )
 
 // Marshal serializes the given data into a ZFS-style nvlist
@@ -198,8 +199,19 @@ func (w *nvlistWriter) writeNvPairs(v reflect.Value) error {
 	case reflect.Struct:
 		t := v.Type()
 		for i := 0; i < v.NumField(); i++ {
-			name := t.Field(i).Tag.Get("nvlist")
+			tags := strings.Split(t.Field(i).Tag.Get("nvlist"), ",")
+			name := tags[0]
 			val := unpackVal(v.Field(i))
+			if len(tags) > 1 {
+				switch tags[1] {
+				case "omitempty":
+					if isEmptyValue(val) {
+						continue
+					}
+				case "ro": // Never marshal
+					continue
+				}
+			}
 			if val.IsValid() {
 				if name == "" {
 					names = append(names, t.Field(i).Name)
@@ -321,4 +333,22 @@ func (w *nvlistWriter) writeNvPairs(v reflect.Value) error {
 	}
 	w.skipN(4) // 4 byte trailer
 	return nil
+}
+
+func isEmptyValue(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
+		return v.Len() == 0
+	case reflect.Bool:
+		return !v.Bool()
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return v.Int() == 0
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return v.Uint() == 0
+	case reflect.Float32, reflect.Float64:
+		return v.Float() == 0
+	case reflect.Interface, reflect.Ptr:
+		return v.IsNil()
+	}
+	return false
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"reflect"
+	"strings"
 )
 
 var (
@@ -171,6 +172,19 @@ func (r *nvlistReader) readPairs(data interface{}) error {
 			v = v.Elem()
 		}
 	}
+	structFieldByName := make(map[string]reflect.Value)
+	if v.Kind() == reflect.Struct {
+		t := v.Type()
+		for i := 0; i < t.NumField(); i++ {
+			field := t.Field(i)
+			tags := strings.Split(field.Tag.Get("nvlist"), ",")
+			name := field.Name
+			if tags[0] != "" {
+				name = tags[0]
+			}
+			structFieldByName[name] = v.Field(i)
+		}
+	}
 	for {
 		var nvp nvpair
 		nvpr := nvPairReader{
@@ -223,7 +237,10 @@ func (r *nvlistReader) readPairs(data interface{}) error {
 			v.SetMapIndex(reflect.ValueOf(name), reflect.ValueOf(val))
 		}
 		if v.Kind() == reflect.Struct {
-			field := v.FieldByName(name)
+			field, ok := structFieldByName[name]
+			if !ok {
+				return ErrInvalidValue
+			}
 			field.Set(reflect.ValueOf(val))
 		}
 	}
