@@ -27,7 +27,7 @@ func TestSequence(t *testing.T) {
 	if err := Snapshot([]string{"test1/test5@snap1", "test1/test6@snap1"}, "test1", nil); err != nil {
 		t.Error(err)
 	}
-	n, err := SendSpace("test1/test5@snap1", &SendOptions{Compress: true})
+	n, err := SendSpace("test1/test5@snap1", SendSpaceOptions{Compress: true})
 	if err != nil {
 		t.Error(err)
 	}
@@ -37,7 +37,7 @@ func TestSequence(t *testing.T) {
 	if err := Snapshot([]string{"test1/test5@snap2"}, "test1", nil); err != nil {
 		t.Error(err)
 	}
-	n, err = SendSpace("test1/test5@snap2", &SendOptions{From: "test1/test5@snap1"})
+	n, err = SendSpace("test1/test5@snap2", SendSpaceOptions{From: "test1/test5@snap1"})
 	if err != nil {
 		t.Error(err)
 	}

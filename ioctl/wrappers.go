@@ -2,6 +2,7 @@ package ioctl
 
 import (
 	"errors"
+	"io"
 	"os"
 )
 
@@ -151,14 +152,14 @@ func Destroy(name string, t ObjectType, deferred bool) error {
 	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_DESTROY, name, cmd, nil, nil)
 }
 
-type SendOptions struct {
+type SendSpaceOptions struct {
 	From        string `nvlist:"from,omitempty"`
 	LargeBlocks bool   `nvlist:"largeblockok"`
 	Embed       bool   `nvlist:"embedok"`
 	Compress    bool   `nvlist:"compress"`
 }
 
-func SendSpace(name string, options *SendOptions) (uint64, error) {
+func SendSpace(name string, options SendSpaceOptions) (uint64, error) {
 	cmd := &Cmd{}
 	var spaceRes struct {
 		Space uint64 `nvlist:"space"`
@@ -167,4 +168,96 @@ func SendSpace(name string, options *SendOptions) (uint64, error) {
 		return 0, err
 	}
 	return spaceRes.Space, nil
+}
+
+type sendStream struct {
+	peekBuf   []byte
+	errorChan chan error
+	lastError error
+	isEOF     bool
+	r         io.ReadCloser
+}
+
+func (s sendStream) Read(buf []byte) (int, error) {
+	if s.isEOF {
+		return 0, s.lastError
+	}
+	if len(s.peekBuf) > 0 {
+		n := copy(buf, s.peekBuf)
+		s.peekBuf = s.peekBuf[n:]
+		return n, nil
+	}
+	n, err := s.r.Read(buf)
+	if err == io.EOF {
+		s.lastError = <-s.errorChan
+		if s.lastError == nil {
+			s.lastError = io.EOF
+		}
+		s.isEOF = true
+		return n, s.lastError
+	}
+	return n, err
+}
+
+func (s sendStream) peek(buf []byte) (int, error) {
+	if s.isEOF {
+		return 0, s.lastError
+	}
+	n, err := s.Read(buf)
+	s.peekBuf = append(s.peekBuf, buf[:n]...)
+	if err == io.EOF {
+		s.lastError = <-s.errorChan
+		if s.lastError == nil {
+			s.lastError = io.EOF
+		}
+		s.isEOF = true
+		return n, s.lastError
+	}
+	return n, err
+}
+
+func (s sendStream) Close() error {
+	return s.r.Close()
+}
+
+type SendOptions struct {
+	fd           int32  `nvlist:"fd"`
+	From         string `nvlist:"fromsnap,omitempty"`
+	LargeBlocks  bool   `nvlist:"largeblockok"`
+	Embed        bool   `nvlist:"embedok"`
+	Compress     bool   `nvlist:"compress"`
+	ResumeObject uint64 `nvlist:"resume_object,omitempty"`
+	ResumeOffset uint64 `nvlist:"resume_offset,omitempty"`
+}
+
+func Send(name string, options SendOptions) (io.ReadCloser, error) {
+	cmd := &Cmd{}
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
+	options.fd = int32(w.Fd())
+
+	stream := sendStream{
+		errorChan: make(chan error, 1),
+		r:         r,
+	}
+
+	go func() {
+		err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_SEND_NEW, name, cmd, options, &struct{}{})
+		stream.errorChan <- err
+		w.Close()
+	}()
+
+	buf := make([]byte, 1) // We want at least 1 byte of output to enter streaming mode
+
+	_, err = stream.peek(buf)
+	if err != nil {
+		r.Close()
+		w.Close()
+		return nil, err
+	}
+
+	return stream, nil
 }
