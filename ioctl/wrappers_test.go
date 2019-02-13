@@ -2,7 +2,8 @@ package ioctl
 
 import (
 	"errors"
-	"fmt"
+	"io"
+	"os"
 	"testing"
 )
 
@@ -41,10 +42,27 @@ func TestSequence(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	fmt.Println(n)
 	if n == 0 {
 		t.Error(errors.New("size of snaphsot is 0"))
 	}
+
+	r, err := Send("test1/test5@snap2", SendOptions{From: "test1/test5@snap1"})
+	if err != nil {
+		t.Error(err)
+	}
+	defer r.Close()
+	f, err := os.Create("send.bin")
+	if err != nil {
+		t.Error(err)
+	}
+	defer f.Close()
+	io.Copy(f, r)
+
+	r, err = Send("test1/test5@nonexistent", SendOptions{})
+	if err == nil {
+		t.Error("Nonexistent send should immediately return an error")
+	}
+
 	if err := Destroy("test1/test5@snap1", ObjectTypeAny, false); err != nil {
 		t.Error(err)
 	}
@@ -52,6 +70,13 @@ func TestSequence(t *testing.T) {
 		t.Error(err)
 	}
 	if err := Destroy("test1/test6@snap2", ObjectTypeAny, false); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestObjsetStats(t *testing.T) {
+	_, err := ObjsetStats("test1/test9")
+	if err != nil {
 		t.Error(err)
 	}
 }

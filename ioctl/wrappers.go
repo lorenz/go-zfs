@@ -178,7 +178,7 @@ type sendStream struct {
 	r         io.ReadCloser
 }
 
-func (s sendStream) Read(buf []byte) (int, error) {
+func (s *sendStream) Read(buf []byte) (int, error) {
 	if s.isEOF {
 		return 0, s.lastError
 	}
@@ -199,11 +199,11 @@ func (s sendStream) Read(buf []byte) (int, error) {
 	return n, err
 }
 
-func (s sendStream) peek(buf []byte) (int, error) {
+func (s *sendStream) peek(buf []byte) (int, error) {
 	if s.isEOF {
 		return 0, s.lastError
 	}
-	n, err := s.Read(buf)
+	n, err := s.r.Read(buf)
 	s.peekBuf = append(s.peekBuf, buf[:n]...)
 	if err == io.EOF {
 		s.lastError = <-s.errorChan
@@ -221,7 +221,7 @@ func (s sendStream) Close() error {
 }
 
 type SendOptions struct {
-	fd           int32  `nvlist:"fd"`
+	Fd           int32  `nvlist:"fd"`
 	From         string `nvlist:"fromsnap,omitempty"`
 	LargeBlocks  bool   `nvlist:"largeblockok"`
 	Embed        bool   `nvlist:"embedok"`
@@ -237,7 +237,7 @@ func Send(name string, options SendOptions) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	options.fd = int32(w.Fd())
+	options.Fd = int32(w.Fd())
 
 	stream := sendStream{
 		errorChan: make(chan error, 1),
@@ -259,5 +259,30 @@ func Send(name string, options SendOptions) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	return stream, nil
+	return &stream, nil
+}
+
+func PoolGetProps(name string) (props interface{}, err error) {
+	props = new(interface{})
+	cmd := &Cmd{}
+	err = NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_POOL_GET_PROPS, name, cmd, nil, props)
+	return
+}
+
+func ObjsetZPLProps(name string) (props interface{}, err error) {
+	props = new(interface{})
+	cmd := &Cmd{}
+	if err = NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_OBJSET_ZPLPROPS, name, cmd, nil, props); err != nil {
+		return
+	}
+	return
+}
+
+func ObjsetStats(name string) (props interface{}, err error) {
+	props = new(interface{})
+	cmd := &Cmd{}
+	if err = NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_OBJSET_STATS, name, cmd, nil, props); err != nil {
+		return
+	}
+	return
 }

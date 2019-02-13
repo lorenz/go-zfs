@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
 func TestNvlistIoctl(t *testing.T) {
@@ -26,7 +24,6 @@ func TestNvlistIoctl(t *testing.T) {
 		outNameRaw = append(outNameRaw, cmd.Name[i])
 	}
 	fmt.Println(string(outNameRaw))
-	spew.Dump(res)
 	res = new(interface{})
 	cmd2 := &Cmd{Cookie: cmd.Cookie}
 	if err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_DATASET_LIST_NEXT, "test1", cmd2, nil, res); err != nil {
@@ -40,5 +37,17 @@ func TestNvlistIoctl(t *testing.T) {
 		outNameRaw2 = append(outNameRaw2, cmd2.Name[i])
 	}
 	fmt.Println(string(outNameRaw2))
-	spew.Dump(res)
+	res = new(interface{})
+	cmd3 := &Cmd{Cookie: cmd2.Cookie}
+	if err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_DATASET_LIST_NEXT, "test1", cmd3, nil, res); err != nil {
+		t.Error(err)
+	}
+	var outNameRaw3 []byte
+	for i := 0; i < len(cmd3.Name); i++ {
+		if cmd3.Name[i] == 0x00 {
+			break
+		}
+		outNameRaw3 = append(outNameRaw3, cmd3.Name[i])
+	}
+	fmt.Println(string(outNameRaw3))
 }
