@@ -52,6 +52,7 @@ func (r *nvlistReader) Read(p []byte) (n int, err error) {
 		n = len(p)
 	} else {
 		n = len(r.nvlist) - r.currentByte
+		err = io.EOF
 	}
 	for i := 0; i < n; i++ {
 		p[i] = r.nvlist[r.currentByte+i]
@@ -82,7 +83,7 @@ func (r *nvPairReader) ReadBytes(delim byte) ([]byte, error) {
 }
 
 func (r *nvPairReader) readN(n int) (val []byte, err error) {
-	if r.currentByte+n <= r.startByte+r.sizeBytes {
+	if r.currentByte+n < r.startByte+r.sizeBytes {
 		val = r.nvlist.nvlist[r.currentByte : r.currentByte+n]
 		r.currentByte += n
 		return
@@ -201,6 +202,9 @@ func (r *nvlistReader) readPairs(data interface{}) error {
 		if nvp.Size == 0 {
 			return nil
 		}
+		if int(nvp.Size)+r.currentByte >= len(r.nvlist) {
+			return ErrInvalidData
+		}
 		nvpr.sizeBytes = int(nvp.Size)
 		r.skipN(int(nvp.Size) - 4) // Skip to next nvPair, subtract 4 already read size bytes
 
@@ -215,6 +219,13 @@ func (r *nvlistReader) readPairs(data interface{}) error {
 		}
 		if err := nvpr.readInt(&nvp.Value_elem); err != nil {
 			return err
+		}
+
+		if nvp.Value_elem < 0 {
+			return ErrInvalidData
+		}
+		if nvp.Value_elem > 65535 { // 64K entries are enough
+			return ErrInvalidData
 		}
 		if err := nvpr.readInt(&nvp.Type); err != nil {
 			return err
