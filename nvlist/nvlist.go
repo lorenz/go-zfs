@@ -48,7 +48,7 @@ func (r *nvlistReader) ReadByte() (byte, error) {
 }
 
 func (r *nvlistReader) Read(p []byte) (n int, err error) {
-	if r.currentByte+len(p) <= len(r.nvlist) {
+	if r.currentByte+len(p) < len(r.nvlist) {
 		n = len(p)
 	} else {
 		n = len(r.nvlist) - r.currentByte
@@ -62,7 +62,7 @@ func (r *nvlistReader) Read(p []byte) (n int, err error) {
 }
 
 func (r *nvPairReader) ReadByte() (byte, error) {
-	if r.currentByte < r.startByte+r.sizeBytes {
+	if r.currentByte <= r.startByte+r.sizeBytes {
 		val := r.nvlist.nvlist[r.currentByte]
 		r.currentByte++
 		return val, nil
@@ -72,7 +72,7 @@ func (r *nvPairReader) ReadByte() (byte, error) {
 
 func (r *nvPairReader) ReadBytes(delim byte) ([]byte, error) {
 	startByte := r.currentByte
-	for ; r.currentByte < r.startByte+r.sizeBytes; r.currentByte++ {
+	for ; r.currentByte <= r.startByte+r.sizeBytes; r.currentByte++ {
 		if r.nvlist.nvlist[r.currentByte] == delim {
 			val := r.nvlist.nvlist[startByte : r.currentByte+1]
 			r.currentByte++ // consume delimiter
@@ -83,7 +83,7 @@ func (r *nvPairReader) ReadBytes(delim byte) ([]byte, error) {
 }
 
 func (r *nvPairReader) readN(n int) (val []byte, err error) {
-	if r.currentByte+n < r.startByte+r.sizeBytes {
+	if r.currentByte+n <= r.startByte+r.sizeBytes {
 		val = r.nvlist.nvlist[r.currentByte : r.currentByte+n]
 		r.currentByte += n
 		return
@@ -202,7 +202,7 @@ func (r *nvlistReader) readPairs(data interface{}) error {
 		if nvp.Size == 0 {
 			return nil
 		}
-		if int(nvp.Size)+r.currentByte >= len(r.nvlist) {
+		if int(nvp.Size)+r.currentByte > len(r.nvlist) {
 			return ErrInvalidData
 		}
 		nvpr.sizeBytes = int(nvp.Size)
