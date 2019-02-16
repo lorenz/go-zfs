@@ -92,11 +92,11 @@ func (w *nvlistWriter) Write(buf []byte) (int, error) {
 }
 
 func (w *nvlistWriter) writeNvHeader() error {
-	if err := w.WriteByte(NATIVE_ENCODING); err != nil {
+	if err := w.WriteByte(byte(EncodingNative)); err != nil {
 		return err
 	}
 	// TODO: Actually deal with BE
-	if err := w.WriteByte(LITTLE_ENDIAN); err != nil {
+	if err := w.WriteByte(littleEndian); err != nil {
 		return err
 	}
 	w.endianness = binary.LittleEndian
@@ -227,7 +227,7 @@ func (w *nvlistWriter) writeNvPairs(v reflect.Value) error {
 
 	for i := 0; i < len(names); i++ {
 		nameLen := len(names[i]) + 1
-		if nameLen > math.MaxInt16 {
+		if nameLen >= math.MaxInt16 {
 			return ErrInvalidValue
 		}
 		nvp := nvpair{
@@ -258,14 +258,6 @@ func (w *nvlistWriter) writeNvPairs(v reflect.Value) error {
 		case reflect.Bool:
 			nvp.Type = typeBoolean
 			nvp.Value_elem = 0
-			/* Only for boolean values
-			var val int32
-			if vals[i].Bool() {
-				val = 1
-			}
-			if err := w.writeInt(val); err != nil {
-				return err
-			}*/
 			w.endNvPair(nvp)
 		case reflect.Map, reflect.Struct:
 			nvp.Type = typeNvlist

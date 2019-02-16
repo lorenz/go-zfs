@@ -8,36 +8,37 @@ import (
 
 // DatasetProps contains all normal props for a dataset
 type DatasetProps struct {
+	Name string `nvlist:"name,omitempty"`
 }
 
 // PoolProps represents all properties of a zpool
 type PoolProps struct {
-	Name    string `nvlist:"name"`
-	Version uint64 `nvlist:"version"`
-	Comment string `nvlist:"comment"`
+	Name    string `nvlist:"name,omitempty"`
+	Version uint64 `nvlist:"version,omitempty"`
+	Comment string `nvlist:"comment,omitempty"`
 
 	// Pool configuration
-	AlternativeRoot string   `nvlist:"altroot"`
-	TemporaryName   string   `nvlist:"tname"`
-	BootFS          string   `nvlist:"bootfs"`
-	CacheFile       string   `nvlist:"cachefile"`
-	ReadOnly        bool     `nvlist:"readonly"`
-	Multihost       bool     `nvlist:"multihost"`
-	Failmode        FailMode `nvlist:"failmode"`
-	DedupDitto      uint64   `nvlist:"dedupditto"`
-	AlignmentShift  uint64   `nvlist:"ashift"`
-	Delegation      bool     `nvlist:"delegation"`
-	Autoreplace     bool     `nvlist:"autoreplace"`
-	ListSnapshots   bool     `nvlist:"listsnapshots"`
-	Autoexpand      bool     `nvlist:"autoexpand"`
-	MaxBlockSize    uint64   `nvlist:"maxblocksize"`
-	MaxDnodeSize    uint64   `nvlist:"maxdnodesize"`
+	AlternativeRoot string   `nvlist:"altroot,omitempty"`
+	TemporaryName   string   `nvlist:"tname,omitempty"`
+	BootFS          string   `nvlist:"bootfs,omitempty"`
+	CacheFile       string   `nvlist:"cachefile,omitempty"`
+	ReadOnly        bool     `nvlist:"readonly,omitempty"`
+	Multihost       bool     `nvlist:"multihost,omitempty"`
+	Failmode        FailMode `nvlist:"failmode,omitempty"`
+	DedupDitto      uint64   `nvlist:"dedupditto,omitempty"`
+	AlignmentShift  uint64   `nvlist:"ashift,omitempty"`
+	Delegation      bool     `nvlist:"delegation,omitempty"`
+	Autoreplace     bool     `nvlist:"autoreplace,omitempty"`
+	ListSnapshots   bool     `nvlist:"listsnapshots,omitempty"`
+	Autoexpand      bool     `nvlist:"autoexpand,omitempty"`
+	MaxBlockSize    uint64   `nvlist:"maxblocksize,omitempty"`
+	MaxDnodeSize    uint64   `nvlist:"maxdnodesize,omitempty"`
 
 	// Defines props for the root volume for PoolCreate()
-	RootProps *DatasetProps `nvlist:"root-props-nvl"`
+	RootProps *DatasetProps `nvlist:"root-props-nvl,omitempty"`
 
 	// All user properties are represented here
-	User map[string]string `nvlist:"-,extra"`
+	User map[string]string `nvlist:"-,extra,omitempty"`
 
 	// Read-only information
 	Size          uint64 `nvlist:"size,ro"`
@@ -56,31 +57,50 @@ type PoolProps struct {
 var zfsHandle *os.File
 
 func init() {
-	zfsHandle, _ = os.Open("/dev/zfs")
+	var err error
+	zfsHandle, err = os.Open("/dev/zfs")
+	if err != nil {
+		panic(err)
+	}
 }
 
-type Child struct {
-	IsLog bool `nvlist:"is_log"`
-}
-
-type Disk struct {
-	SpaceMapObjectNumber uint64 `nvlist:"DTL"`
-	AlignmentShift       uint64 `nvlist:"ashift"`
-	AllocatableCapacity  uint64 `nvlist:"asize"`
+type VDev struct {
+	IsLog                uint64 `nvlist:"is_log"`
+	SpaceMapObjectNumber uint64 `nvlist:"DTL,omitempty"`
+	AlignmentShift       uint64 `nvlist:"ashift,omitempty"`
+	AllocatableCapacity  uint64 `nvlist:"asize,omitempty"`
+	GUID                 uint64 `nvlist:"guid,omitempty"`
+	ID                   uint64 `nvlist:"id,omitempty"`
+	Path                 string `nvlist:"path"`
+	Type                 string `nvlist:"type"`
+	Children             []VDev `nvlist:"children,omitempty"`
 }
 
 type PoolConfig struct {
-	Children []Child `nvlist:"children"`
-	Spares   []Child `nvlist:"spares"`
-	L2Cache  []Child `nvlist:"l2cache"`
+	NumberOfChildren uint64 `nvlist:"vdev_children"`
+	VDevTree         *VDev  `nvlist:"vdev_tree"`
+	Errata           uint64 `nvlist:"errata,omitempty"`
+	HostID           uint64 `nvlist:"hostid,omitempty"`
+	Hostname         string `nvlist:"hostname,omitempty"`
+	Name             string `nvlist:"name,omitempty"`
+	GUID             uint64 `nvlist:"pool_guid,omitempty"`
+	State            uint64 `nvlist:"state,omitempty"`
+	TXG              uint64 `nvlist:"txg,omitempty"`
+	Version          uint64 `nvlist:"version,omitempty"`
 }
 
 /*func DatasetListNext(name string, cookie uint64) (string, uint64, DMUObjectSetStats, DatasetProps, error) {
 
 }*/
 
-func PoolCreate(name string, options PoolProps, config PoolConfig) error {
-	return nil
+func PoolCreate(name string, features map[string]uint64, config VDev) error {
+	cmd := &Cmd{}
+	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_POOL_CREATE, name, cmd, features, nil, config)
+}
+
+func PoolDestroy(name string) error {
+	cmd := &Cmd{}
+	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_POOL_DESTROY, name, cmd, nil, nil, nil)
 }
 
 func Create(name string, t ObjectType, props *DatasetProps) error {
@@ -92,7 +112,7 @@ func Create(name string, t ObjectType, props *DatasetProps) error {
 	createReq.Props = props
 	cmd := &Cmd{}
 	createRes := make(map[string]int32)
-	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_CREATE, name, cmd, createReq, createRes)
+	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_CREATE, name, cmd, createReq, createRes, nil)
 }
 
 func Snapshot(names []string, pool string, props *DatasetProps) error {
@@ -110,7 +130,7 @@ func Snapshot(names []string, pool string, props *DatasetProps) error {
 	snapReq.Props = props
 	cmd := &Cmd{}
 	snapRes := make(map[string]int32)
-	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_SNAPSHOT, pool, cmd, snapReq, snapRes)
+	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_SNAPSHOT, pool, cmd, snapReq, snapRes, nil)
 	// TODO: Maybe there is an error in snapRes
 }
 
@@ -122,7 +142,7 @@ func GetWrittenProperty(dataset, snapshot string) (uint64, error) {
 	for i := 0; i < len(snapshot); i++ {
 		cmd.Value[i] = snapshot[i]
 	}
-	if err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_SPACE_WRITTEN, dataset, cmd, nil, nil); err != nil {
+	if err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_SPACE_WRITTEN, dataset, cmd, nil, nil, nil); err != nil {
 		return 0, err
 	}
 	return cmd.Cookie, nil
@@ -142,14 +162,14 @@ func Rename(oldName, newName string, recursive bool) error {
 	for i := 0; i < len(newName); i++ {
 		cmd.Value[i] = newName[i]
 	}
-	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_RENAME, oldName, cmd, nil, nil)
+	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_RENAME, oldName, cmd, nil, nil, nil)
 }
 
 func Destroy(name string, t ObjectType, deferred bool) error {
 	cmd := &Cmd{
 		Objset_type: uint64(t),
 	}
-	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_DESTROY, name, cmd, nil, nil)
+	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_DESTROY, name, cmd, nil, nil, nil)
 }
 
 type SendSpaceOptions struct {
@@ -164,7 +184,7 @@ func SendSpace(name string, options SendSpaceOptions) (uint64, error) {
 	var spaceRes struct {
 		Space uint64 `nvlist:"space"`
 	}
-	if err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_SEND_SPACE, name, cmd, options, &spaceRes); err != nil {
+	if err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_SEND_SPACE, name, cmd, options, &spaceRes, nil); err != nil {
 		return 0, err
 	}
 	return spaceRes.Space, nil
@@ -245,7 +265,7 @@ func Send(name string, options SendOptions) (io.ReadCloser, error) {
 	}
 
 	go func() {
-		err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_SEND_NEW, name, cmd, options, &struct{}{})
+		err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_SEND_NEW, name, cmd, options, &struct{}{}, nil)
 		stream.errorChan <- err
 		w.Close()
 	}()
@@ -265,14 +285,14 @@ func Send(name string, options SendOptions) (io.ReadCloser, error) {
 func PoolGetProps(name string) (props interface{}, err error) {
 	props = new(interface{})
 	cmd := &Cmd{}
-	err = NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_POOL_GET_PROPS, name, cmd, nil, props)
+	err = NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_POOL_GET_PROPS, name, cmd, nil, props, nil)
 	return
 }
 
 func ObjsetZPLProps(name string) (props interface{}, err error) {
 	props = new(interface{})
 	cmd := &Cmd{}
-	if err = NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_OBJSET_ZPLPROPS, name, cmd, nil, props); err != nil {
+	if err = NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_OBJSET_ZPLPROPS, name, cmd, nil, props, nil); err != nil {
 		return
 	}
 	return
@@ -281,7 +301,7 @@ func ObjsetZPLProps(name string) (props interface{}, err error) {
 func ObjsetStats(name string) (props interface{}, err error) {
 	props = new(interface{})
 	cmd := &Cmd{}
-	if err = NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_OBJSET_STATS, name, cmd, nil, props); err != nil {
+	if err = NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_OBJSET_STATS, name, cmd, nil, props, nil); err != nil {
 		return
 	}
 	return

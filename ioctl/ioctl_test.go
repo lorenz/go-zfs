@@ -1,11 +1,6 @@
 package ioctl
 
-import (
-	"fmt"
-	"os"
-	"testing"
-)
-
+/*
 func TestNvlistIoctl(t *testing.T) {
 	zfsHandle, err := os.Open("/dev/zfs")
 	if err != nil {
@@ -13,7 +8,7 @@ func TestNvlistIoctl(t *testing.T) {
 	}
 	res := new(interface{})
 	cmd := &Cmd{}
-	if err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_DATASET_LIST_NEXT, "test1", cmd, nil, res); err != nil {
+	if err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_DATASET_LIST_NEXT, "test1", cmd, nil, res, nil); err != nil {
 		t.Error(err)
 	}
 	var outNameRaw []byte
@@ -26,7 +21,7 @@ func TestNvlistIoctl(t *testing.T) {
 	fmt.Println(string(outNameRaw))
 	res = new(interface{})
 	cmd2 := &Cmd{Cookie: cmd.Cookie}
-	if err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_DATASET_LIST_NEXT, "test1", cmd2, nil, res); err != nil {
+	if err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_DATASET_LIST_NEXT, "test1", cmd2, nil, res, nil); err != nil {
 		t.Error(err)
 	}
 	var outNameRaw2 []byte
@@ -39,7 +34,7 @@ func TestNvlistIoctl(t *testing.T) {
 	fmt.Println(string(outNameRaw2))
 	res = new(interface{})
 	cmd3 := &Cmd{Cookie: cmd2.Cookie}
-	if err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_DATASET_LIST_NEXT, "test1", cmd3, nil, res); err != nil {
+	if err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_DATASET_LIST_NEXT, "test1", cmd3, nil, res, nil); err != nil {
 		t.Error(err)
 	}
 	var outNameRaw3 []byte
@@ -51,3 +46,4 @@ func TestNvlistIoctl(t *testing.T) {
 	}
 	fmt.Println(string(outNameRaw3))
 }
+*/

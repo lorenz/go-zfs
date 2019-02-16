@@ -10,8 +10,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func NvlistIoctl(fd uintptr, ioctl Ioctl, name string, cmd *Cmd, request interface{}, response interface{}) error {
+func NvlistIoctl(fd uintptr, ioctl Ioctl, name string, cmd *Cmd, request interface{}, response interface{}, config interface{}) error {
 	var src []byte
+	var configRaw []byte
 	var err error
 	if request != nil {
 		if src, err = nvlist.Marshal(request); err != nil {
@@ -30,6 +31,13 @@ func NvlistIoctl(fd uintptr, ioctl Ioctl, name string, cmd *Cmd, request interfa
 		cmd.Nvlist_src = uint64(uintptr(unsafe.Pointer(&src[0])))
 		cmd.Nvlist_src_size = uint64(len(src))
 	}
+	if config != nil {
+		if configRaw, err = nvlist.Marshal(config); err != nil {
+			return err
+		}
+		cmd.Nvlist_conf = uint64(uintptr(unsafe.Pointer(&configRaw[0])))
+		cmd.Nvlist_conf_size = uint64(len(configRaw))
+	}
 
 	if len(name) > 4095 {
 		return errors.New("Name is too big")
@@ -41,6 +49,7 @@ func NvlistIoctl(fd uintptr, ioctl Ioctl, name string, cmd *Cmd, request interfa
 	runtime.KeepAlive(src)
 	runtime.KeepAlive(dst)
 	runtime.KeepAlive(cmd)
+	runtime.KeepAlive(configRaw)
 	if errno != 0 {
 		return errno
 	}

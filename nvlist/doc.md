@@ -15,3 +15,19 @@ Notes
 * 0x20 -> 32 -> 4 pointers
 * nvlistarray 0x60 -> 2 items
 * nvlistarray 0x80 -> 3 items (4 pointers per item)
+
+## XDR
+
+nvpair
+* size (i32)
+* decoded size (i32, irrelevant)
+* name (length-coded i32 without null termination)
+* type (i32)
+* number of items (i32)
+
+* numerics -> native
+* byte -> int32
+* string -> length-coded (i32, without null byte) and padded to 4 bytes
+* boolean -> empty (number of items zero)
+* booleanValue -> i32
+* nvlist -> version (i32) + flags (i32) + nvpairs + 8 bytes zero padding

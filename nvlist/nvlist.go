@@ -17,16 +17,23 @@ var (
 	errEndOfData        = errors.New("end of data")
 )
 
+// Encoding represents the encoding used for serialization/deserialization
+type Encoding uint8
+
 const (
-	NATIVE_ENCODING = 0x00
-	BIG_ENDIAN      = 0x00
-	LITTLE_ENDIAN   = 0x01
+	// EncodingNative is used in syscalls and cache files
+	EncodingNative Encoding = 0x00
+	// EncodingXDR is used on-disk (and is not actually XDR)
+	EncodingXDR  Encoding = 0x01
+	bigEndian             = 0x00
+	littleEndian          = 0x01
 )
 
 type nvlistReader struct {
 	nvlist      []byte
 	currentByte int
 	endianness  binary.ByteOrder
+	encoding    Encoding
 	flags       uint32
 	version     int32
 }
@@ -112,8 +119,17 @@ func (r *nvPairReader) readInt(val interface{}) error {
 
 // Skips to next 8-byte aligned address inside nvPair
 func (r *nvPairReader) skipToAlign() {
-	if (r.currentByte-r.startByte)%8 != 0 {
-		r.currentByte += 8 - ((r.currentByte - r.startByte) % 8)
+	var alignment int
+	switch r.nvlist.encoding {
+	case EncodingNative:
+		alignment = 8
+	case EncodingXDR:
+		alignment = 4
+	default:
+		panic("Invalid encoding inside parser")
+	}
+	if (r.currentByte-r.startByte)%alignment != 0 {
+		r.currentByte += alignment - ((r.currentByte - r.startByte) % alignment)
 	}
 }
 
@@ -134,18 +150,24 @@ func (r *nvlistReader) readNvHeader() error {
 	if err != nil {
 		return err
 	}
-	if encoding != NATIVE_ENCODING {
+	switch Encoding(encoding) {
+	case EncodingNative:
+		r.encoding = EncodingNative
+	case EncodingXDR:
+		r.encoding = EncodingXDR
+	default:
 		return ErrInvalidEncoding
 	}
+
 	endiness, err := r.ReadByte()
 	if err != nil {
 		return err
 	}
 
 	switch endiness {
-	case BIG_ENDIAN:
+	case bigEndian:
 		r.endianness = binary.BigEndian
-	case LITTLE_ENDIAN:
+	case littleEndian:
 		r.endianness = binary.LittleEndian
 	default:
 		return ErrInvalidEndianess
@@ -199,7 +221,7 @@ func (r *nvlistReader) readPairs(data interface{}) error {
 		if nvp.Size < 0 {
 			return ErrInvalidData
 		}
-		if nvp.Size == 0 {
+		if nvp.Size == 0 { // End indicated by zero size
 			return nil
 		}
 		if int(nvp.Size)+r.currentByte > len(r.nvlist) {
@@ -207,6 +229,10 @@ func (r *nvlistReader) readPairs(data interface{}) error {
 		}
 		nvpr.sizeBytes = int(nvp.Size)
 		r.skipN(int(nvp.Size) - 4) // Skip to next nvPair, subtract 4 already read size bytes
+
+		if r.encoding == EncodingXDR {
+			r.skipN(4) // Skip decoded size, it's irrelevant for us
+		}
 
 		if err := nvpr.readInt(&nvp.Name_sz); err != nil {
 			return err
