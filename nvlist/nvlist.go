@@ -276,7 +276,8 @@ func (r *nvlistReader) readPairs(data interface{}) error {
 		if v.Kind() == reflect.Struct {
 			field, ok := structFieldByName[name]
 			if !ok {
-				return ErrInvalidValue
+				continue // Ignore invalid fields
+				//return ErrInvalidValue
 			}
 			field.Set(reflect.ValueOf(val))
 		}

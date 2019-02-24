@@ -5,6 +5,9 @@ import (
 	"io"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/unix"
 )
 
 func TestSequence(t *testing.T) {
@@ -35,12 +38,28 @@ func TestSequence(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	props := new(interface{})
+	_, _, _, err = DatasetListNext("tp1", 0, props)
+	if err != unix.ESRCH {
+		t.Errorf("Dataset list of empty pool doesn't return ESRCH (instead %v)", err)
+	}
+
 	if err := Create("tp1/test5", ObjectTypeZFS, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := Create("tp1/test7", ObjectTypeZFS, nil); err != nil {
 		t.Error(err)
 	}
+
+	props = new(interface{})
+	name, cookie, _, err := DatasetListNext("tp1", 0, props)
+	assert.NoError(t, err)
+
+	props = new(interface{})
+	name2, cookie, _, err := DatasetListNext("tp1", cookie, props)
+	assert.NoError(t, err)
+	assert.NotEqual(t, name, name2) // Test if cookies work
+
 	if err := Rename("tp1/test7", "tp1/test6", false); err != nil {
 		t.Error(err)
 	}
@@ -53,6 +72,9 @@ func TestSequence(t *testing.T) {
 	}
 	if n == 0 {
 		t.Error(errors.New("size of snaphsot is 0"))
+	}
+	if err := Clone("tp1/test5@snap1", "tp1/test9", nil); err != nil {
+		t.Error(err)
 	}
 	if err := Snapshot([]string{"tp1/test5@snap2"}, "tp1", nil); err != nil {
 		t.Error(err)
@@ -70,18 +92,24 @@ func TestSequence(t *testing.T) {
 		t.Error(err)
 	}
 	defer r.Close()
-	f, err = os.Create("send.bin")
+	f, err = os.Create("/dev/shm/send.bin")
 	if err != nil {
 		t.Error(err)
 	}
 	defer f.Close()
-	io.Copy(f, r)
+	defer os.Remove("/dev/shm/send.bin")
+	if _, err := io.Copy(f, r); err != nil {
+		t.Error(err)
+	}
 
 	r, err = Send("tp1/test5@nonexistent", SendOptions{})
 	if err == nil {
 		t.Error("Nonexistent send should immediately return an error")
 	}
 
+	if err := Destroy("tp1/test9", ObjectTypeAny, false); err != nil {
+		t.Error(err)
+	}
 	if err := Destroy("tp1/test5@snap1", ObjectTypeAny, false); err != nil {
 		t.Error(err)
 	}

@@ -1,8 +1,6 @@
 package ioctl
 
 import (
-	"errors"
-	"io/ioutil"
 	"runtime"
 	"unsafe"
 
@@ -18,7 +16,7 @@ func NvlistIoctl(fd uintptr, ioctl Ioctl, name string, cmd *Cmd, request interfa
 		if src, err = nvlist.Marshal(request); err != nil {
 			return err
 		}
-		ioutil.WriteFile("ioctl-req.bin", src, 0644)
+		//ioutil.WriteFile("ioctl-req.bin", src, 0644)
 	}
 	// WARNING: Here be dragons! This is completely outside of Go's safety net and uses various
 	// criticial runtime workarounds to make sure that memory is safely handled
@@ -38,13 +36,7 @@ func NvlistIoctl(fd uintptr, ioctl Ioctl, name string, cmd *Cmd, request interfa
 		cmd.Nvlist_conf = uint64(uintptr(unsafe.Pointer(&configRaw[0])))
 		cmd.Nvlist_conf_size = uint64(len(configRaw))
 	}
-
-	if len(name) > 4095 {
-		return errors.New("Name is too big")
-	}
-	for i := 0; i < len(name); i++ {
-		cmd.Name[i] = name[i]
-	}
+	stringToDelimitedBuf(name, cmd.Name[:])
 	_, _, errno := unix.Syscall(unix.SYS_IOCTL, fd, uintptr(ioctl), uintptr(unsafe.Pointer(cmd)))
 	runtime.KeepAlive(src)
 	runtime.KeepAlive(dst)
@@ -53,7 +45,7 @@ func NvlistIoctl(fd uintptr, ioctl Ioctl, name string, cmd *Cmd, request interfa
 	if errno != 0 {
 		return errno
 	}
-	ioutil.WriteFile("ioctl-res.bin", dst, 0644)
+	//ioutil.WriteFile("ioctl-res.bin", dst, 0644)
 	if response != nil {
 		return nvlist.Unmarshal(dst, response)
 	}

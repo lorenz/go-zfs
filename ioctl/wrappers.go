@@ -2,6 +2,7 @@ package ioctl
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 )
@@ -9,6 +10,30 @@ import (
 // DatasetProps contains all normal props for a dataset
 type DatasetProps struct {
 	Name string `nvlist:"name,omitempty"`
+}
+
+type ACLInheritancePolicy uint64
+type DNodeSize uint64
+type CanMount uint64
+
+type FilesystemProps struct {
+	SnapshotDirectoryEnabled bool                 `nvlist:"snapdir,asuint64"`
+	ACLInheritancePolicy     ACLInheritancePolicy `nvlist:"aclinherit,omitempty,default=4"`
+	DNodeSize                DNodeSize            `nvlist:"dnodesize,omitempty"`
+	Atime                    bool                 `nvlist:"atime,default=true"`
+	RelativeAtime            bool                 `nvlist:"relatime"`
+
+	// All props below do nothing here
+	Zoned     bool     `nvlist:"zoned"`
+	VirusScan bool     `nvlist:"vscan"`
+	Overlay   bool     `nvlist:"overlay"`
+	CanMount  CanMount `nvlist:"canmount,default=true"`
+	Mounted   bool     `nvlist:"mounted"`
+
+	Mountpoint string `nvlist:"mountpoint"`
+}
+
+type VolumeProps struct {
 }
 
 // PoolProps represents all properties of a zpool
@@ -74,6 +99,8 @@ type VDev struct {
 	Path                 string `nvlist:"path"`
 	Type                 string `nvlist:"type"`
 	Children             []VDev `nvlist:"children,omitempty"`
+	L2CacheChildren      []VDev `nvlist:"l2cache,omitempty"`
+	SparesChildren       []VDev `nvlist:"spares,omitempty"`
 }
 
 type PoolConfig struct {
@@ -89,9 +116,38 @@ type PoolConfig struct {
 	Version          uint64 `nvlist:"version,omitempty"`
 }
 
-/*func DatasetListNext(name string, cookie uint64) (string, uint64, DMUObjectSetStats, DatasetProps, error) {
+func delimitedBufToString(buf []byte) string {
+	i := 0
+	for ; i < len(buf); i++ {
+		if buf[i] == 0x00 {
+			break
+		}
+	}
+	return string(buf[:i])
+}
 
-}*/
+func stringToDelimitedBuf(str string, buf []byte) error {
+	if len(str) > len(buf)-1 {
+		return fmt.Errorf("String longer than target buffer (%v > %v)", len(str), len(buf)-1)
+	}
+	for i := 0; i < len(str); i++ {
+		if str[i] == 0x00 {
+			return errors.New("String contains null byte, this is unsupported by ZFS")
+		}
+		buf[i] = str[i]
+	}
+	return nil
+}
+
+func DatasetListNext(name string, cookie uint64, props interface{}) (string, uint64, DMUObjectSetStats, error) {
+	cmd := &Cmd{
+		Cookie: cookie,
+	}
+	if err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_DATASET_LIST_NEXT, name, cmd, nil, props, nil); err != nil {
+		return "", 0, DMUObjectSetStats{}, err
+	}
+	return delimitedBufToString(cmd.Name[:]), cmd.Cookie, cmd.Objset_stats, nil
+}
 
 func PoolCreate(name string, features map[string]uint64, config VDev) error {
 	cmd := &Cmd{}
@@ -101,6 +157,26 @@ func PoolCreate(name string, features map[string]uint64, config VDev) error {
 func PoolDestroy(name string) error {
 	cmd := &Cmd{}
 	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_POOL_DESTROY, name, cmd, nil, nil, nil)
+}
+
+func Promote(name string) (conflictingSnapshot string, err error) {
+	cmd := &Cmd{}
+	err = NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_PROMOTE, name, cmd, nil, nil, nil)
+	conflictingSnapshot = delimitedBufToString(cmd.String[:])
+	return
+}
+
+func Clone(origin string, name string, props *DatasetProps) error {
+	var cloneReq struct {
+		Origin string        `nvlist:"origin"`
+		Props  *DatasetProps `nvlist:"props"`
+	}
+	cloneReq.Origin = origin
+	cloneReq.Props = props
+	errList := make(map[string]int32)
+	cmd := &Cmd{}
+	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_CLONE, name, cmd, cloneReq, errList, nil)
+	// TODO: Partial failures using errList
 }
 
 func Create(name string, t ObjectType, props *DatasetProps) error {
@@ -134,14 +210,82 @@ func Snapshot(names []string, pool string, props *DatasetProps) error {
 	// TODO: Maybe there is an error in snapRes
 }
 
-func GetWrittenProperty(dataset, snapshot string) (uint64, error) {
+func DestroySnapshots(names []string, pool string, defer_ bool) error {
+	var destroySnapReq struct {
+		Snaps map[string]bool `nvlist:"snaps"`
+		Defer bool            `nvlist:"defer"`
+	}
+	destroySnapReq.Snaps = make(map[string]bool)
+	for _, name := range names {
+		if _, ok := destroySnapReq.Snaps[name]; ok {
+			return errors.New("duplicate snapshot name")
+		}
+		destroySnapReq.Snaps[name] = true
+	}
+	destroySnapReq.Defer = defer_
+	errList := make(map[string]int32)
 	cmd := &Cmd{}
-	if len(snapshot) > 8191 {
-		return 0, errors.New("snapshot is longer than 8191 bytes, this is unsupported")
+	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_CLONE, pool, cmd, destroySnapReq, errList, nil)
+}
+
+func Bookmark(snapshotsToBookmarks map[string]string) error {
+	errList := make(map[string]int32)
+	cmd := &Cmd{}
+	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_BOOKMARK, "", cmd, snapshotsToBookmarks, errList, nil)
+	// TODO: Handle errList
+}
+
+func Rollback(name string, target string) (actualTarget string, err error) {
+	var req struct {
+		Target string `nvlist:"target,omitempty"`
 	}
-	for i := 0; i < len(snapshot); i++ {
-		cmd.Value[i] = snapshot[i]
+	req.Target = target
+	var res struct {
+		Target string `nvlist:"target"`
 	}
+	cmd := &Cmd{}
+	err = NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_ROLLBACK, name, cmd, req, res, nil)
+	actualTarget = res.Target
+	return
+}
+
+type PropSource uint64
+
+const (
+	PropSourceNone PropSource = 1 << iota
+	PropSourceDefault
+	PropSourceTemporary
+	PropSourceLocal
+	PropSourceInherited
+	PropSourceReceived
+)
+
+func SetProp(name string, props map[string]interface{}, source PropSource) error {
+	cmd := &Cmd{
+		Cookie: uint64(source),
+	}
+	errList := make(map[string]int64)
+	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_SET_PROP, name, cmd, props, errList, nil)
+	// TODO: Distinguish between partial and complete failures using errList
+}
+
+func InheritProp(name string, propName string, revertToReceived bool) error {
+	var cookie uint64
+	if revertToReceived {
+		cookie = 1
+	}
+	cmd := &Cmd{
+		Cookie: cookie,
+	}
+	if err := stringToDelimitedBuf(propName, cmd.Value[:]); err != nil {
+		return err
+	}
+	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_INHERIT_PROP, name, cmd, nil, nil, nil)
+}
+
+func GetSpaceWritten(dataset, snapshot string) (uint64, error) {
+	cmd := &Cmd{}
+	stringToDelimitedBuf(snapshot, cmd.Value[:])
 	if err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_SPACE_WRITTEN, dataset, cmd, nil, nil, nil); err != nil {
 		return 0, err
 	}
@@ -156,12 +300,7 @@ func Rename(oldName, newName string, recursive bool) error {
 	cmd := &Cmd{
 		Cookie: cookieVal,
 	}
-	if len(newName) > 8191 {
-		return errors.New("newName is longer than 8191 bytes, this is unsupported")
-	}
-	for i := 0; i < len(newName); i++ {
-		cmd.Value[i] = newName[i]
-	}
+	stringToDelimitedBuf(newName, cmd.Value[:])
 	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_RENAME, oldName, cmd, nil, nil, nil)
 }
 

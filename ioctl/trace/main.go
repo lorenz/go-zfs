@@ -12,7 +12,6 @@ import (
 	"git.dolansoft.org/lorenz/go-zfs/nvlist"
 
 	"git.dolansoft.org/lorenz/go-zfs/ioctl"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/lunixbochs/struc"
 )
 
@@ -59,11 +58,11 @@ func main() {
 				if err := struc.UnpackWithOrder(bytes.NewReader(data), cmd, binary.LittleEndian); err != nil {
 					panic(err)
 				}
-				cmdJSON, err := json.Marshal(cmd)
+				/*cmdJSON, err := json.Marshal(cmd)
 				if err != nil {
 					panic(err)
 				}
-				fmt.Printf("cmd\n---------\n%v\n", string(cmdJSON))
+				fmt.Printf("cmd\n---------\n%v\n", string(cmdJSON))*/
 				if cmd.Nvlist_src != 0 {
 					rawSrc := make([]byte, cmd.Nvlist_src_size)
 					if _, err := syscall.PtracePeekData(pid, uintptr(cmd.Nvlist_src), rawSrc); err != nil {
@@ -73,12 +72,12 @@ func main() {
 					if err := nvlist.Unmarshal(rawSrc, src); err != nil {
 						panic(err)
 					}
-					/*srcJSON, err := json.MarshalIndent(src, "", "\t")
+					srcJSON, err := json.MarshalIndent(src, "", "\t")
 					if err != nil {
 						panic(err)
 					}
-					fmt.Printf("src\n---------\n%v\n", string(srcJSON))*/
-					spew.Dump(src)
+					fmt.Printf("src\n%v\n", string(srcJSON))
+					//spew.Dump(src)
 				}
 				if cmd.Nvlist_dst != 0 {
 					rawDst := make([]byte, cmd.Nvlist_dst_size)
@@ -93,7 +92,7 @@ func main() {
 					if err != nil {
 						panic(err)
 					}
-					fmt.Printf("dst\n---------\n%v\n", string(dstJSON))
+					fmt.Printf("dst\n%v\n", string(dstJSON))
 				}
 				if cmd.Nvlist_conf != 0 {
 					rawConf := make([]byte, cmd.Nvlist_conf_size)
@@ -108,7 +107,7 @@ func main() {
 					if err != nil {
 						panic(err)
 					}
-					fmt.Printf("conf\n---------\n%v\n", string(confJSON))
+					fmt.Printf("conf\n%v\n", string(confJSON))
 				}
 				fmt.Println("----------------------------")
 			}

@@ -11,7 +11,7 @@ type Cmd struct {
 	Pad2              int32
 	History           uint64
 	Value             [8192]byte
-	String            [256]int8
+	String            [256]byte
 	Guid              uint64
 	Nvlist_conf       uint64
 	Nvlist_conf_size  uint64
