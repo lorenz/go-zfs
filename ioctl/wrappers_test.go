@@ -131,7 +131,10 @@ func TestSequence(t *testing.T) {
 	if err := Destroy("tp1/test5@snap2", ObjectTypeAny, false); err != nil {
 		t.Error(err)
 	}
-	if err := Destroy("tp1/test6@snap2", ObjectTypeAny, false); err != nil {
+	if err := Destroy("tp1/test6@snap1", ObjectTypeAny, false); err != nil {
+		t.Error(err)
+	}
+	if err := Destroy("tp1/test6", ObjectTypeAny, false); err != nil {
 		t.Error(err)
 	}
 	if err := PoolDestroy("tp1"); err != nil {
