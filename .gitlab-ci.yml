@@ -14,6 +14,8 @@ build-kvmtool:
 build-tests:
   stage: build
   image: golang:1.11
+  variables:
+    CGO_ENABLED: "0"
   script:
     - cd ioctl && go test -c
   artifacts:
