@@ -326,7 +326,7 @@ type SendSpaceOptions struct {
 	From        string `nvlist:"from,omitempty"`
 	LargeBlocks bool   `nvlist:"largeblockok"`
 	Embed       bool   `nvlist:"embedok"`
-	Compress    bool   `nvlist:"compress"`
+	Compress    bool   `nvlist:"compressok"`
 }
 
 func SendSpace(name string, options SendSpaceOptions) (uint64, error) {
