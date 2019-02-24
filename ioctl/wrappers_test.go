@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,7 +12,19 @@ import (
 )
 
 func TestSequence(t *testing.T) {
-	fileLocation := "/dev/shm/test.img"
+	baseLocation := "/dev/shm"
+
+	if os.Getpid() == 1 { // Running in special testenv
+		baseLocation = "/" // Is P9 mapped
+		os.MkdirAll("/dev", 0755)
+		err := unix.Mount("none", "/dev", "devtmpfs", unix.MS_NOSUID, "")
+		if err != nil {
+			panic(err) // Bail, something is very wrong
+		}
+	}
+	Init("")
+
+	fileLocation := filepath.Join(baseLocation, "test.img")
 	f, err := os.Create(fileLocation)
 	if err != nil {
 		t.Fatal(err)
@@ -92,12 +105,14 @@ func TestSequence(t *testing.T) {
 		t.Error(err)
 	}
 	defer r.Close()
-	f, err = os.Create("/dev/shm/send.bin")
+
+	sendLocation := filepath.Join(baseLocation, "send.bin")
+	f, err = os.Create(sendLocation)
 	if err != nil {
 		t.Error(err)
 	}
 	defer f.Close()
-	defer os.Remove("/dev/shm/send.bin")
+	defer os.Remove(sendLocation)
 	if _, err := io.Copy(f, r); err != nil {
 		t.Error(err)
 	}

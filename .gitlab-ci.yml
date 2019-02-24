@@ -1,0 +1,33 @@
+
+build-kvmtool:
+  stage: build
+  image: gcc:8
+  script:
+    - git clone https://git.kernel.org/pub/scm/linux/kernel/git/will/kvmtool.git
+    - cd kvmtool && make -j$(nproc)
+  artifacts:
+    untracked: false
+    paths:
+      - kvmtool/vm
+    expire_in: 30 days
+
+build-tests:
+  stage: build
+  image: golang:1.11
+  script:
+    - cd ioctl && go test -c
+  artifacts:
+    untracked: false
+    paths:
+      - ioctl/ioctl.test
+    expire_in: 30 days
+
+test:
+  stage: test
+  image: debian:stretch
+  dependencies:
+    - build-kvmtool
+    - build-tests
+  script:
+    - wget -O bzImage https://gitlab-ci-token:$CI_JOB_TOKEN@git.dolansoft.org/dolansoft/linux/-/jobs/artifacts/gozfs-testenv/raw/arch/x86/boot/bzImage?job=build-testenv
+    - kvmtool/vm run -m 256m --kernel bzImage -c1 --console virtio -d ioctl -p "init=/ioctl.test"

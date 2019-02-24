@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"golang.org/x/sys/unix"
 )
 
 // DatasetProps contains all normal props for a dataset
@@ -81,12 +83,21 @@ type PoolProps struct {
 
 var zfsHandle *os.File
 
-func init() {
-	var err error
-	zfsHandle, err = os.Open("/dev/zfs")
-	if err != nil {
-		panic(err)
+// Init opens a ZFS handle
+func Init(nodePath string) error {
+	if nodePath == "" {
+		nodePath = "/dev/zfs"
 	}
+	var err error
+	zfsHandle, err = os.Open(nodePath)
+	if os.IsNotExist(err) {
+		unix.Mknod(nodePath, 666, int(unix.Mkdev(10, 54)))
+	}
+	zfsHandle, err = os.Open(nodePath)
+	if err != nil {
+		return fmt.Errorf("Failed to open or create ZFS device node: %v", err)
+	}
+	return nil
 }
 
 type VDev struct {
