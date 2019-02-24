@@ -29,5 +29,6 @@ test:
     - build-kvmtool
     - build-tests
   script:
+    - apt-get update && apt-get -yy install wget
     - wget -O bzImage https://gitlab-ci-token:$CI_JOB_TOKEN@git.dolansoft.org/dolansoft/linux/-/jobs/artifacts/gozfs-testenv/raw/arch/x86/boot/bzImage?job=build-testenv
     - kvmtool/vm run -m 256m --kernel bzImage -c1 --console virtio -d ioctl -p "init=/ioctl.test"
