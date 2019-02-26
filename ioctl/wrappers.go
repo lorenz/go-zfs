@@ -526,7 +526,7 @@ func PauseScan(pool string) error {
 // or start a new operation (start is not supported for resilver)
 func StartStopScan(pool string, t ScanType) error {
 	cmd := &Cmd{
-		Cookie: 0,
+		Cookie: uint64(t),
 	}
 	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_POOL_SCAN, pool, cmd, nil, nil, nil)
 }
