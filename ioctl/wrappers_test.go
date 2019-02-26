@@ -114,6 +114,10 @@ func TestSequence(t *testing.T) {
 		t.Error("Nonexistent send should immediately return an error")
 	}
 
+	if err := StartStopScan("tp1", ScanTypeScrub); err != nil {
+		t.Error(err)
+	}
+
 	if err := Destroy("tp1/test9", ObjectTypeAny, false); err != nil {
 		t.Error(err)
 	}

@@ -500,3 +500,33 @@ func ObjsetStats(name string) (props interface{}, err error) {
 	}
 	return
 }
+
+// ScanType represents all possible scan-type operations (resilver or scrub)
+type ScanType uint64
+
+const (
+	// ScanTypeNone stops an ongoing scan-type operation
+	ScanTypeNone ScanType = iota
+	// ScanTypeScrub starts or resumes a scrub
+	ScanTypeScrub
+	// ScanTypeResilver resumes a paused resilver
+	ScanTypeResilver
+)
+
+// PauseScan pauses an active resilver or scrub operation.
+func PauseScan(pool string) error {
+	cmd := &Cmd{
+		Flags: 1,
+	}
+	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_POOL_SCAN, pool, cmd, nil, nil, nil)
+}
+
+// StartStopScan starts or stops a scrub or resilver operation. If the ScanType is set to ScanType none,
+// it will stop an active resilver or scrub operation, ScanTypeScrub and ScanTypeResilver will resume
+// or start a new operation (start is not supported for resilver)
+func StartStopScan(pool string, t ScanType) error {
+	cmd := &Cmd{
+		Cookie: 0,
+	}
+	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_POOL_SCAN, pool, cmd, nil, nil, nil)
+}
