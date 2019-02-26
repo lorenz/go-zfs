@@ -48,6 +48,6 @@ test:
     - build-testhelper
   script:
     - apt-get update && apt-get -yy install wget
-    - wget -O bzImage https://blob.dolansoft.org/public/gozfs-testenv-linux
+    - wget -nv -O bzImage https://blob.dolansoft.org/public/gozfs-testenv-linux
     - kvmtool/vm run -m 256m --kernel bzImage -c1 --console virtio -d ioctl -p "init=/testhelper/testhelper"
     - test -e ioctl/successful || exit 1
