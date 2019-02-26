@@ -14,14 +14,6 @@ import (
 func TestSequence(t *testing.T) {
 	baseLocation := "/dev/shm"
 
-	if os.Getpid() == 1 { // Running in special testenv
-		baseLocation = "/" // Is P9 mapped
-		os.MkdirAll("/dev", 0755)
-		err := unix.Mount("none", "/dev", "devtmpfs", unix.MS_NOSUID, "")
-		if err != nil {
-			panic(err) // Bail, something is very wrong
-		}
-	}
 	Init("")
 
 	fileLocation := filepath.Join(baseLocation, "test.img")

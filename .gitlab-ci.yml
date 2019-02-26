@@ -11,7 +11,20 @@ build-kvmtool:
       - kvmtool/vm
     expire_in: 30 days
 
-build-tests:
+build-testhelper:
+  stage: build
+  image: golang:1.11
+  variables:
+    CGO_ENABLED: "0"
+  script:
+    - cd ioctl/testhelper && go build
+  artifacts:
+    untracked: false
+    paths:
+      - ioctl/testhelper/testhelper
+    expire_in: 30 days
+
+build-ioctl-tests:
   stage: build
   image: golang:1.11
   variables:
@@ -31,8 +44,10 @@ test:
     NEEDS_KVM: "true"
   dependencies:
     - build-kvmtool
-    - build-tests
+    - build-ioctl-tests
+    - build-testhelper
   script:
     - apt-get update && apt-get -yy install wget
     - wget -O bzImage https://blob.dolansoft.org/public/gozfs-testenv-linux
-    - kvmtool/vm run -m 256m --kernel bzImage -c1 --console virtio -d ioctl -p "init=/ioctl.test"
+    - kvmtool/vm run -m 256m --kernel bzImage -c1 --console virtio -d ioctl -p "init=/testhelper/testhelper"
+    - test -e ioctl/successful || exit 1
