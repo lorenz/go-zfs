@@ -118,6 +118,14 @@ func TestSequence(t *testing.T) {
 		t.Error(err)
 	}
 
+	// TODO: Look if scrub is running
+
+	if err := RegenerateGUID("tp1"); err != nil {
+		t.Error(err)
+	}
+
+	// TODO: Validate that GUID has changed
+
 	if err := Destroy("tp1/test9", ObjectTypeAny, false); err != nil {
 		t.Error(err)
 	}

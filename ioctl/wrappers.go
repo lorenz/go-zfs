@@ -530,3 +530,10 @@ func StartStopScan(pool string, t ScanType) error {
 	}
 	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_POOL_SCAN, pool, cmd, nil, nil, nil)
 }
+
+// RegenerateGUID assigns a new GUID to the pool. Since this operation needs to write to all devices
+// the pool cannot be degraded or have missing devices.
+func RegenerateGUID(pool string) error {
+	cmd := &Cmd{}
+	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_POOL_REGUID, pool, cmd, nil, nil, nil)
+}
