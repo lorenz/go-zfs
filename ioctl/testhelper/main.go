@@ -29,7 +29,7 @@ func main() {
 		}
 		MountSys("tmpfs", "/dev/shm")
 		MountSys("sysfs", "/sys")
-		cmd := exec.Command("/ioctl.test", "-v")
+		cmd := exec.Command("/ioctl.test", "-test.v")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		err = cmd.Run()
