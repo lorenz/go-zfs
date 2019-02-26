@@ -21,7 +21,6 @@ func MountSys(fsType, path string) {
 
 func main() {
 	if os.Getpid() == 1 { // Running as Init
-		defer unix.Reboot(unix.LINUX_REBOOT_CMD_POWER_OFF)
 		os.MkdirAll("/dev", 0755)
 		err := unix.Mount("none", "/dev", "devtmpfs", unix.MS_NOSUID, "")
 		if err != nil {
@@ -30,7 +29,9 @@ func main() {
 		}
 		MountSys("tmpfs", "/dev/shm")
 		MountSys("sysfs", "/sys")
-		cmd := exec.Command("/ioctl.test")
+		cmd := exec.Command("/ioctl.test", "-v")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 		err = cmd.Run()
 		if err == nil {
 			f, err := os.Create("/successful")
