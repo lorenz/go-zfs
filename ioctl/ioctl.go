@@ -1,3 +1,5 @@
+// Package ioctl provides a pure-Go low-level wrapper around ZFS's ioctl interface and basic wrappers around common
+// ioctls to make them usable from normal Go code.
 package ioctl
 
 import (
@@ -8,6 +10,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// NvlistIoctl issues a low-level ioctl syscall with only some common wrappers. All unsafety is contained in here.
 func NvlistIoctl(fd uintptr, ioctl Ioctl, name string, cmd *Cmd, request interface{}, response interface{}, config interface{}) error {
 	var src []byte
 	var configRaw []byte

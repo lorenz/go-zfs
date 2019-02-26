@@ -1,3 +1,5 @@
+// Package nvlist implements encoding and decoding of ZFS-style nvlists with an interface similar to
+// that of encoding/json. It supports "native" encoding and parts of XDR in both big and little endian.
 package nvlist
 
 import (

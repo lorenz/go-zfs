@@ -150,9 +150,11 @@ func stringToDelimitedBuf(str string, buf []byte) error {
 	return nil
 }
 
-func DatasetListNext(name string, cookie uint64, props interface{}) (string, uint64, DMUObjectSetStats, error) {
+// DatasetListNext lists ZFS datsets under the dataset or zpool given by name. It only returns one dataset and
+// a cursor which can be used to get the next dataset in the list. The cursor value for the first element is 0.
+func DatasetListNext(name string, cursor uint64, props interface{}) (string, uint64, DMUObjectSetStats, error) {
 	cmd := &Cmd{
-		Cookie: cookie,
+		Cookie: cursor,
 	}
 	if err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_DATASET_LIST_NEXT, name, cmd, nil, props, nil); err != nil {
 		return "", 0, DMUObjectSetStats{}, err
@@ -160,16 +162,19 @@ func DatasetListNext(name string, cookie uint64, props interface{}) (string, uin
 	return delimitedBufToString(cmd.Name[:]), cmd.Cookie, cmd.Objset_stats, nil
 }
 
+// PoolCreate creates a new zpool with the given name, featues and devices
 func PoolCreate(name string, features map[string]uint64, config VDev) error {
 	cmd := &Cmd{}
 	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_POOL_CREATE, name, cmd, features, nil, config)
 }
 
+// PoolDestroy removes a zpool completely
 func PoolDestroy(name string) error {
 	cmd := &Cmd{}
 	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_POOL_DESTROY, name, cmd, nil, nil, nil)
 }
 
+// Promote replaces a ZFS filesystem with a clone of itself.
 func Promote(name string) (conflictingSnapshot string, err error) {
 	cmd := &Cmd{}
 	err = NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_PROMOTE, name, cmd, nil, nil, nil)
@@ -177,6 +182,7 @@ func Promote(name string) (conflictingSnapshot string, err error) {
 	return
 }
 
+// Clone creates a new writable ZFS dataset from the given origin snapshot
 func Clone(origin string, name string, props *DatasetProps) error {
 	var cloneReq struct {
 		Origin string        `nvlist:"origin"`
@@ -190,6 +196,7 @@ func Clone(origin string, name string, props *DatasetProps) error {
 	// TODO: Partial failures using errList
 }
 
+// Create creates a new ZFS dataset
 func Create(name string, t ObjectType, props *DatasetProps) error {
 	var createReq struct {
 		Type  ObjectType    `nvlist:"type"`
@@ -202,6 +209,8 @@ func Create(name string, t ObjectType, props *DatasetProps) error {
 	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_CREATE, name, cmd, createReq, createRes, nil)
 }
 
+// Snapshot creates one or more snapshots of datasets on the same zpool. The names are in standard
+// ZFS syntax (dataset/subdataset@snapname).
 func Snapshot(names []string, pool string, props *DatasetProps) error {
 	var snapReq struct {
 		Snaps map[string]bool `nvlist:"snaps"`
@@ -221,6 +230,8 @@ func Snapshot(names []string, pool string, props *DatasetProps) error {
 	// TODO: Maybe there is an error in snapRes
 }
 
+// DestroySnapshots removes multiple snapshots in the same pool. By setting the defer option the
+// operation will be executed in the background after the function has returned.
 func DestroySnapshots(names []string, pool string, defer_ bool) error {
 	var destroySnapReq struct {
 		Snaps map[string]bool `nvlist:"snaps"`
@@ -239,6 +250,9 @@ func DestroySnapshots(names []string, pool string, defer_ bool) error {
 	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_CLONE, pool, cmd, destroySnapReq, errList, nil)
 }
 
+// Bookmark creates ZFS bookmarks from snapshots. These are only available on ZoL 0.7+ and currently
+// only used for resumable send/receive, but will eventually be usable as a reference for incremental
+// sends.
 func Bookmark(snapshotsToBookmarks map[string]string) error {
 	errList := make(map[string]int32)
 	cmd := &Cmd{}
@@ -246,6 +260,7 @@ func Bookmark(snapshotsToBookmarks map[string]string) error {
 	// TODO: Handle errList
 }
 
+// Rollback rolls back a ZFS dataset to a snapshot taken earlier
 func Rollback(name string, target string) (actualTarget string, err error) {
 	var req struct {
 		Target string `nvlist:"target,omitempty"`
@@ -260,8 +275,10 @@ func Rollback(name string, target string) (actualTarget string, err error) {
 	return
 }
 
+// PropSource represents all possible sources for ZFS props
 type PropSource uint64
 
+// All possible values of PropSource
 const (
 	PropSourceNone PropSource = 1 << iota
 	PropSourceDefault
@@ -271,6 +288,7 @@ const (
 	PropSourceReceived
 )
 
+// SetProp sets one or more props on a ZFS dataset.
 func SetProp(name string, props map[string]interface{}, source PropSource) error {
 	cmd := &Cmd{
 		Cookie: uint64(source),
@@ -280,6 +298,8 @@ func SetProp(name string, props map[string]interface{}, source PropSource) error
 	// TODO: Distinguish between partial and complete failures using errList
 }
 
+// InheritProp makes a prop inherit from its parent or reverts it to the received prop which is
+// being shadowed by a local prop (see PropSource).
 func InheritProp(name string, propName string, revertToReceived bool) error {
 	var cookie uint64
 	if revertToReceived {
@@ -294,6 +314,8 @@ func InheritProp(name string, propName string, revertToReceived bool) error {
 	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_INHERIT_PROP, name, cmd, nil, nil, nil)
 }
 
+// GetSpaceWritten returns the amount of bytes written into a dataset since the given snapshot was
+// taken. Also useful for determining if anything has changed in dataset since the snaphsot was taken.
 func GetSpaceWritten(dataset, snapshot string) (uint64, error) {
 	cmd := &Cmd{}
 	stringToDelimitedBuf(snapshot, cmd.Value[:])
@@ -303,6 +325,7 @@ func GetSpaceWritten(dataset, snapshot string) (uint64, error) {
 	return cmd.Cookie, nil
 }
 
+// Rename renames a dataset
 func Rename(oldName, newName string, recursive bool) error {
 	var cookieVal uint64
 	if recursive {
@@ -315,6 +338,8 @@ func Rename(oldName, newName string, recursive bool) error {
 	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_RENAME, oldName, cmd, nil, nil, nil)
 }
 
+// Destroy removes dataset irrevocably. If the deferred flag is given, the function will terminate
+// and the actuall removal will be processed asynchronously.
 func Destroy(name string, t ObjectType, deferred bool) error {
 	cmd := &Cmd{
 		Objset_type: uint64(t),
@@ -322,13 +347,17 @@ func Destroy(name string, t ObjectType, deferred bool) error {
 	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_DESTROY, name, cmd, nil, nil, nil)
 }
 
+// SendSpaceOptions contains all options for the SendSpace function
 type SendSpaceOptions struct {
-	From        string `nvlist:"from,omitempty"`
-	LargeBlocks bool   `nvlist:"largeblockok"`
-	Embed       bool   `nvlist:"embedok"`
-	Compress    bool   `nvlist:"compressok"`
+	// From can contain an older snapshot for an incremental transfer
+	From string `nvlist:"from,omitempty"`
+	// These enable individual features for transfer space estimation
+	LargeBlocks bool `nvlist:"largeblockok"`
+	Embed       bool `nvlist:"embedok"`
+	Compress    bool `nvlist:"compressok"`
 }
 
+// SendSpace determines approximately how big a ZFS send stream will be
 func SendSpace(name string, options SendSpaceOptions) (uint64, error) {
 	cmd := &Cmd{}
 	var spaceRes struct {
@@ -390,16 +419,28 @@ func (s sendStream) Close() error {
 	return s.r.Close()
 }
 
+// SendOptions contains all options for the Send function.
 type SendOptions struct {
-	Fd           int32  `nvlist:"fd"`
-	From         string `nvlist:"fromsnap,omitempty"`
-	LargeBlocks  bool   `nvlist:"largeblockok"`
-	Embed        bool   `nvlist:"embedok"`
-	Compress     bool   `nvlist:"compress"`
+	// Fd is writable file descriptor and should generally not be set. If it is set, all convenience
+	// wrappers will be disabled and the Fd will be directly passed into the kernel.
+	Fd int32 `nvlist:"fd"`
+
+	// From can optionally contain an older snapshot for an incremental send
+	From string `nvlist:"fromsnap,omitempty"`
+
+	// These enable individual features for the send stream
+	LargeBlocks bool `nvlist:"largeblockok"`
+	Embed       bool `nvlist:"embedok"`
+	Compress    bool `nvlist:"compress"`
+
+	// These can optionally be set to resume a transfer (ZoL 0.7+)
 	ResumeObject uint64 `nvlist:"resume_object,omitempty"`
 	ResumeOffset uint64 `nvlist:"resume_offset,omitempty"`
 }
 
+// Send generates a stream containing either a full or an incremental snapshot. This function provides
+// some basic convenience wrappers including a fail-fast mode which returns an error directly if it
+// happens before a single byte is sent out and a Read-compatible output stream.
 func Send(name string, options SendOptions) (io.ReadCloser, error) {
 	cmd := &Cmd{}
 
@@ -432,6 +473,7 @@ func Send(name string, options SendOptions) (io.ReadCloser, error) {
 	return &stream, nil
 }
 
+// PoolGetProps gets all props for a zpool
 func PoolGetProps(name string) (props interface{}, err error) {
 	props = new(interface{})
 	cmd := &Cmd{}
@@ -439,6 +481,7 @@ func PoolGetProps(name string) (props interface{}, err error) {
 	return
 }
 
+// ObjsetZPLProps gets all object set props
 func ObjsetZPLProps(name string) (props interface{}, err error) {
 	props = new(interface{})
 	cmd := &Cmd{}
@@ -448,6 +491,7 @@ func ObjsetZPLProps(name string) (props interface{}, err error) {
 	return
 }
 
+// ObjsetStats gets statistics on object sets
 func ObjsetStats(name string) (props interface{}, err error) {
 	props = new(interface{})
 	cmd := &Cmd{}
