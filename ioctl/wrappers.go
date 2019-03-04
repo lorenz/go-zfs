@@ -150,14 +150,15 @@ func stringToDelimitedBuf(str string, buf []byte) error {
 
 // DatasetListNext lists ZFS datsets under the dataset or zpool given by name. It only returns one dataset and
 // a cursor which can be used to get the next dataset in the list. The cursor value for the first element is 0.
-func DatasetListNext(name string, cursor uint64, props interface{}) (string, uint64, DMUObjectSetStats, error) {
+func DatasetListNext(name string, cursor uint64) (string, uint64, DMUObjectSetStats, DatasetProps, error) {
 	cmd := &Cmd{
 		Cookie: cursor,
 	}
+	props := make(DatasetProps)
 	if err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_DATASET_LIST_NEXT, name, cmd, nil, props, nil); err != nil {
-		return "", 0, DMUObjectSetStats{}, err
+		return "", 0, DMUObjectSetStats{}, props, err
 	}
-	return delimitedBufToString(cmd.Name[:]), cmd.Cookie, cmd.Objset_stats, nil
+	return delimitedBufToString(cmd.Name[:]), cmd.Cookie, cmd.Objset_stats, props, nil
 }
 
 // SnapshotListNext lists ZFS snapshots under the dataset or zpool given by name. It works similar to DatsetListNext

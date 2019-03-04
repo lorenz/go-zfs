@@ -45,7 +45,7 @@ type DMUObjectSetStats struct {
 	Type         uint32
 	Is_snapshot  uint8
 	Inconsistent uint8
-	Origin       [256]int8
+	Origin       [256]byte
 	Pad_cgo_0    [2]byte
 }
 type ZInjectRecord struct {

@@ -43,25 +43,23 @@ func TestSequence(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	props := new(interface{})
-	_, _, _, err = DatasetListNext("tp1", 0, props)
+	_, _, _, _, err = DatasetListNext("tp1", 0)
 	if err != unix.ESRCH {
 		t.Errorf("Dataset list of empty pool doesn't return ESRCH (instead %v)", err)
 	}
 
-	if err := Create("tp1/test5", ObjectTypeZFS, nil); err != nil {
+	if err := Create("tp1/test5", ObjectTypeZFS, &DatasetProps{"mountpoint": "legacy"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := Create("tp1/test7", ObjectTypeZFS, nil); err != nil {
+	if err := Create("tp1/test7", ObjectTypeZFS, &DatasetProps{"mountpoint": "legacy"}); err != nil {
 		t.Error(err)
 	}
 
-	props = new(interface{})
-	name, cookie, _, err := DatasetListNext("tp1", 0, props)
+	name, cookie, _, props, err := DatasetListNext("tp1", 0)
 	assert.NoError(t, err)
+	assert.Equal(t, props["mountpoint"].(map[string]interface{})["value"].(string), "legacy")
 
-	props = new(interface{})
-	name2, cookie, _, err := DatasetListNext("tp1", cookie, props)
+	name2, cookie, _, props, err := DatasetListNext("tp1", cookie)
 	assert.NoError(t, err)
 	assert.NotEqual(t, name, name2) // Test if cookies work
 
