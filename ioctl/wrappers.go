@@ -191,6 +191,14 @@ func PoolDestroy(name string) error {
 	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_POOL_DESTROY, name, cmd, nil, nil, nil)
 }
 
+// PoolConfigs gets all pool configs
+func PoolConfigs() (map[string]interface{}, error) {
+	cmd := &Cmd{}
+	res := make(map[string]interface{})
+	err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_POOL_CONFIGS, "", cmd, nil, res, nil)
+	return res, err
+}
+
 // Promote replaces a ZFS filesystem with a clone of itself.
 func Promote(name string) (conflictingSnapshot string, err error) {
 	cmd := &Cmd{}

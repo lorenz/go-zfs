@@ -43,6 +43,10 @@ func TestSequence(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	poolConfigs, err := PoolConfigs()
+	assert.NoError(t, err)
+	assert.Contains(t, poolConfigs, "tp1")
+
 	_, _, _, _, err = DatasetListNext("tp1", 0)
 	if err != unix.ESRCH {
 		t.Errorf("Dataset list of empty pool doesn't return ESRCH (instead %v)", err)
