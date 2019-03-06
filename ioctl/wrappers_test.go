@@ -57,7 +57,8 @@ func TestSequence(t *testing.T) {
 
 	name, cookie, _, props, err := DatasetListNext("tp1", 0)
 	assert.NoError(t, err)
-	assert.Equal(t, props["mountpoint"].(map[string]interface{})["value"].(string), "legacy")
+	assert.Equal(t, props["mountpoint"].Value.(string), "legacy")
+	assert.Equal(t, props["type"].Value.(uint64), uint64(2))
 
 	name2, cookie, _, props, err := DatasetListNext("tp1", cookie)
 	assert.NoError(t, err)

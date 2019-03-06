@@ -31,6 +31,17 @@ const (
 	littleEndian          = 0x01
 )
 
+// Unmarshal parses a ZFS-style nvlist in native encoding and with any endianness
+func Unmarshal(data []byte, val interface{}) error {
+	s := nvlistReader{
+		nvlist: data,
+	}
+	if err := s.readNvHeader(); err != nil {
+		return err
+	}
+	return s.readPairs(reflect.ValueOf(val))
+}
+
 type nvlistReader struct {
 	nvlist      []byte
 	currentByte int
@@ -187,8 +198,7 @@ func (r *nvlistReader) readNvHeader() error {
 	return nil
 }
 
-func (r *nvlistReader) readPairs(data interface{}) error {
-	v := reflect.ValueOf(data)
+func (r *nvlistReader) readPairs(v reflect.Value) error {
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
 		if v.Kind() == reflect.Interface && v.NumMethod() == 0 {
@@ -209,6 +219,10 @@ func (r *nvlistReader) readPairs(data interface{}) error {
 			}
 			structFieldByName[name] = v.Field(i)
 		}
+	} else if v.Kind() == reflect.Map {
+		// Noop, but valid
+	} else {
+		return ErrInvalidData
 	}
 	for {
 		var nvp nvpair
@@ -267,21 +281,199 @@ func (r *nvlistReader) readPairs(data interface{}) error {
 
 		nvpr.skipToAlign()
 
-		val, err := nvp.Type.decode(nvpr, uint32(nvp.Value_elem))
-		if err != nil {
-			return err
+		setPrimitive := func(value interface{}) {
+			rValue := reflect.ValueOf(value)
+			if rValue.Kind() == reflect.Ptr {
+				rValue = rValue.Elem()
+			}
+			if v.Kind() == reflect.Struct {
+				field := structFieldByName[name]
+				if field.CanSet() {
+					field.Set(rValue)
+				}
+			} else if v.Kind() == reflect.Map {
+				v.SetMapIndex(reflect.ValueOf(name), rValue)
+			}
 		}
 
-		if v.Kind() == reflect.Map {
-			v.SetMapIndex(reflect.ValueOf(name), reflect.ValueOf(val))
-		}
-		if v.Kind() == reflect.Struct {
-			field, ok := structFieldByName[name]
-			if !ok {
-				continue // Ignore invalid fields
-				//return ErrInvalidValue
+		switch nvp.Type {
+		case typeUnknown:
+			return ErrInvalidData
+		case typeBoolean:
+			setPrimitive(true)
+		case typeInt16, typeUint16, typeInt32, typeUint32, typeInt64, typeUint64, typeInt8, typeUint8: // Integer-style types
+			var val interface{}
+			switch nvp.Type {
+			case typeInt16:
+				val = new(int16)
+			case typeUint16:
+				val = new(uint16)
+			case typeInt32:
+				val = new(int32)
+			case typeUint32:
+				val = new(uint32)
+			case typeInt64:
+				val = new(int64)
+			case typeUint64:
+				val = new(uint64)
+			case typeInt8:
+				val = new(int8)
+			case typeUint8:
+				val = new(uint8)
+			default:
+				panic("Primitive type with no handler (illegal state), check all primitive types are handled")
 			}
-			field.Set(reflect.ValueOf(val))
+
+			err := nvpr.readInt(val)
+			if err != nil {
+				return err
+			}
+			setPrimitive(val)
+		case typeByte:
+			b, err := nvpr.ReadByte()
+			if err != nil {
+				return err
+			}
+			setPrimitive(b)
+		case typeString:
+			data, err := nvpr.ReadBytes(0x00)
+			if err != nil {
+				return err
+			}
+			setPrimitive(string(data[:len(data)-1]))
+		case typeBooleanValue:
+			var tmp int32
+			err := nvpr.readInt(&tmp)
+			if err != nil {
+				return err
+			}
+			var val bool
+			switch tmp {
+			case 0:
+				val = false
+			case 1:
+				val = true
+			default:
+				return ErrInvalidData
+			}
+			setPrimitive(val)
+		// Array handling
+		case typeInt16Array, typeUint16Array, typeInt32Array, typeUint32Array, typeInt64Array, typeUint64Array, typeInt8Array, typeUint8Array:
+			var val interface{}
+			switch nvp.Type {
+			case typeInt16:
+				val = make([]int16, nvp.Value_elem)
+			case typeUint16:
+				val = make([]uint16, nvp.Value_elem)
+			case typeInt32:
+				val = make([]int32, nvp.Value_elem)
+			case typeUint32:
+				val = make([]uint32, nvp.Value_elem)
+			case typeInt64:
+				val = make([]int64, nvp.Value_elem)
+			case typeUint64:
+				val = make([]uint64, nvp.Value_elem)
+			case typeInt8:
+				val = make([]int8, nvp.Value_elem)
+			case typeUint8:
+				val = make([]uint8, nvp.Value_elem)
+			default:
+				panic("Array type with no handler (illegal state), check all primitive types are handled")
+			}
+			for i := 0; i < int(nvp.Value_elem); i++ {
+				if err := nvpr.readInt(reflect.ValueOf(val).Index(i).Interface()); err != nil {
+					return err
+				}
+			}
+			setPrimitive(val)
+
+		case typeByteArray:
+			val, err := nvpr.readN(int(nvp.Value_elem))
+			if err != nil {
+				return err
+			}
+			setPrimitive(val)
+		case typeStringArray:
+			val := make([]string, nvp.Value_elem)
+			nvpr.skipN(int(8 * nvp.Value_elem)) // Skip pointers
+			// Pointers are always aligned
+			for i := uint32(0); i < uint32(nvp.Value_elem); i++ {
+				data, err := nvpr.ReadBytes(0x00)
+				if err != nil {
+					return err
+				}
+				val[i] = string(data[:len(data)-1])
+			}
+			setPrimitive(val)
+		case typeBooleanArray:
+			var tmp int32
+			val := make([]bool, nvp.Value_elem)
+			for i := uint32(0); i < uint32(nvp.Value_elem); i++ {
+				if err := nvpr.readInt(&tmp); err != nil {
+					return err
+				}
+				switch tmp {
+				case 0:
+					val[i] = false
+				case 1:
+					val[i] = true
+				default:
+					return ErrInvalidData
+				}
+			}
+			setPrimitive(val)
+		// Nvlist handling
+		case typeNvlist:
+			if v.Kind() == reflect.Struct {
+				field := structFieldByName[name]
+				if field.CanSet() {
+					if err := nvpr.nvlist.readPairs(field); err != nil {
+						return err
+					}
+				}
+			} else if v.Kind() == reflect.Map {
+				valueType := v.Type().Elem()
+				var val reflect.Value
+				if valueType.Kind() == reflect.Interface {
+					val = reflect.ValueOf(make(map[string]interface{}))
+				} else if valueType.Kind() == reflect.Struct {
+					val = reflect.New(valueType)
+				} else if valueType.Kind() == reflect.Map {
+					val = reflect.MakeMap(reflect.MapOf(reflect.TypeOf(""), valueType.Elem()))
+				} else {
+					panic("Cannot currently handle complex hybrid types")
+				}
+				if err := nvpr.nvlist.readPairs(val); err != nil {
+					return err
+				}
+				if val.Kind() == reflect.Ptr {
+					v.SetMapIndex(reflect.ValueOf(name), val.Elem())
+				} else {
+					v.SetMapIndex(reflect.ValueOf(name), val)
+				}
+			} else {
+				panic("Invalid pair type (not map or struct)")
+			}
+		case typeNvlistArray:
+			var val reflect.Value
+			if v.Kind() == reflect.Struct {
+				panic("Deserializing NVListArrays into structs currently unsupported")
+			} else if v.Kind() == reflect.Map {
+				val = reflect.MakeSlice(reflect.SliceOf(reflect.TypeOf(map[string]interface{}{})), int(nvp.Value_elem), int(nvp.Value_elem))
+				// Drop unused data (nvlist header @ 8 bytes + 64 bit pointer @ 8 bytes)
+				nvpr.skipN(int((8 + 8) * nvp.Value_elem))
+				for i := 0; i < int(nvp.Value_elem); i++ { // arraySize is <2^16
+					val.Index(i).Set(reflect.MakeMap(val.Type().Elem()))
+					err := nvpr.nvlist.readPairs(val.Index(i))
+					if err != nil {
+						return err
+					}
+				}
+				v.SetMapIndex(reflect.ValueOf(name), val)
+			} else {
+				panic("Invalid pair type (not map or struct)")
+			}
+
 		}
 	}
 }

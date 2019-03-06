@@ -9,6 +9,13 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// PropWithSource repesents a prop with source
+type PropWithSource struct {
+	Value  interface{} `nvlist:"value"`
+	Source string      `nvlist:"source"`
+}
+type DatasetPropsWithSource map[string]PropWithSource
+
 // DatasetProps contains all normal props for a dataset
 type DatasetProps map[string]interface{}
 
@@ -150,11 +157,11 @@ func stringToDelimitedBuf(str string, buf []byte) error {
 
 // DatasetListNext lists ZFS datsets under the dataset or zpool given by name. It only returns one dataset and
 // a cursor which can be used to get the next dataset in the list. The cursor value for the first element is 0.
-func DatasetListNext(name string, cursor uint64) (string, uint64, DMUObjectSetStats, DatasetProps, error) {
+func DatasetListNext(name string, cursor uint64) (string, uint64, DMUObjectSetStats, DatasetPropsWithSource, error) {
 	cmd := &Cmd{
 		Cookie: cursor,
 	}
-	props := make(DatasetProps)
+	props := make(DatasetPropsWithSource)
 	if err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_DATASET_LIST_NEXT, name, cmd, nil, props, nil); err != nil {
 		return "", 0, DMUObjectSetStats{}, props, err
 	}

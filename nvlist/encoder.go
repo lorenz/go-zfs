@@ -21,17 +21,6 @@ func Marshal(val interface{}) ([]byte, error) {
 	return writer.nvlist, nil
 }
 
-// Unmarshal parses a ZFS-style nvlist in native encoding and with any endianness
-func Unmarshal(data []byte, val interface{}) error {
-	s := nvlistReader{
-		nvlist: data,
-	}
-	if err := s.readNvHeader(); err != nil {
-		return err
-	}
-	return s.readPairs(val)
-}
-
 type nvlistWriter struct {
 	nvlist                 []byte
 	nvpairStartByte        int
