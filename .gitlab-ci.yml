@@ -18,6 +18,11 @@ build-testhelper:
     CGO_ENABLED: "0"
   script:
     - cd ioctl/testhelper && go build
+  cache:
+    untracked: false
+    paths:
+      - /go/pkg/mod
+    policy: pull-push
   artifacts:
     untracked: false
     paths:
@@ -31,6 +36,11 @@ build-ioctl-tests:
     CGO_ENABLED: "0"
   script:
     - cd ioctl && go test -c
+  cache:
+    untracked: false
+    paths:
+      - /go/pkg/mod
+    policy: pull-push
   artifacts:
     untracked: false
     paths:
