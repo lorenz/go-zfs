@@ -570,8 +570,8 @@ func ObjsetZPLProps(name string) (props interface{}, err error) {
 }
 
 // ObjsetStats gets statistics on object sets
-func ObjsetStats(name string) (props interface{}, err error) {
-	props = new(interface{})
+func ObjsetStats(name string) (props DatasetPropsWithSource, err error) {
+	props = make(DatasetPropsWithSource)
 	cmd := &Cmd{}
 	if err = NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_OBJSET_STATS, name, cmd, nil, props, nil); err != nil {
 		return

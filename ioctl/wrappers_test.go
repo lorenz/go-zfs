@@ -59,6 +59,9 @@ func TestSequence(t *testing.T) {
 		t.Error(err)
 	}
 
+	props, err := ObjsetStats("tp1/test5")
+	assert.NoError(t, err, "Failed to call ObjsetStats")
+
 	name, cookie, _, props, err := DatasetListNext("tp1", 0)
 	assert.NoError(t, err)
 	assert.Equal(t, props["mountpoint"].Value.(string), "legacy")
