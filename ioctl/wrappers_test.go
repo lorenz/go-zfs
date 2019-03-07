@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -58,6 +59,8 @@ func TestSequence(t *testing.T) {
 	if err := Create("tp1/test7", ObjectTypeZFS, &DatasetProps{"mountpoint": "legacy"}); err != nil {
 		t.Error(err)
 	}
+	err = Create("tp1/test7/ml0", ObjectTypeZFS, &DatasetProps{"mountpoint": "legacy"})
+	assert.NoError(t, err)
 
 	props, err := ObjsetStats("tp1/test5")
 	assert.NoError(t, err, "Failed to call ObjsetStats")
@@ -70,6 +73,33 @@ func TestSequence(t *testing.T) {
 	name2, cookie, _, props, err := DatasetListNext("tp1", cookie)
 	assert.NoError(t, err)
 	assert.NotEqual(t, name, name2) // Test if cookies work
+
+	var findDatasetsRecursive func(prefix string, root bool) bool
+	findDatasetsRecursive = func(prefix string, root bool) bool {
+		cookie := uint64(0)
+		for {
+			var name string
+			name, cookie, _, _, err = DatasetListNext(prefix, cookie)
+			if err == unix.ESRCH {
+				if root {
+					t.Error("Didn't find ml0 in listing")
+				}
+				return false
+			}
+			if err != nil {
+				t.Error(err)
+				t.FailNow()
+			}
+			if strings.Contains(name, "ml0") {
+				return true
+			}
+			if findDatasetsRecursive(name, false) {
+				return true
+			}
+		}
+	}
+
+	findDatasetsRecursive("tp1", true)
 
 	if err := Rename("tp1/test7", "tp1/test6", false); err != nil {
 		t.Error(err)
@@ -144,6 +174,10 @@ func TestSequence(t *testing.T) {
 	if err := Destroy("tp1/test6@snap1", ObjectTypeAny, false); err != nil {
 		t.Error(err)
 	}
+	if err := Destroy("tp1/test6/ml0", ObjectTypeAny, false); err != nil {
+		t.Error(err)
+	}
+
 	if err := Destroy("tp1/test6", ObjectTypeAny, false); err != nil {
 		t.Error(err)
 	}
