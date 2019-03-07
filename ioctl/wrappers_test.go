@@ -129,9 +129,7 @@ func TestSequence(t *testing.T) {
 	}
 
 	r, err := Send("tp1/test5@snap2", SendOptions{From: "tp1/test5@snap1"})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err, "Failed to send snap2")
 	defer r.Close()
 
 	sendLocation := filepath.Join(baseLocation, "send.bin")
@@ -144,6 +142,19 @@ func TestSequence(t *testing.T) {
 	if _, err := io.Copy(f, r); err != nil {
 		t.Error(err)
 	}
+
+	r.Close()
+	f.Seek(0, io.SeekStart)
+
+	Destroy("tp1/test5@snap2", ObjectTypeAny, false)
+
+	res, err := Receive("tp1/test5", f, ReceiveOpts{SnapshotName: "tp1/test5@snap2"})
+	assert.NoError(t, err, "Failed to receive")
+	assert.NotZero(t, res.ReadBytes, "Receive result wrong")
+
+	props, err = ObjsetStats("tp1/test5@snap2")
+	assert.NoError(t, err, "Failed to stat received snapshot")
+	assert.Equal(t, ObjectType(props["type"].Value.(uint64)), ObjectTypeZFS, "Invalid received object type")
 
 	r, err = Send("tp1/test5@nonexistent", SendOptions{})
 	if err == nil {
