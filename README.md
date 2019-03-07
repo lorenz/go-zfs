@@ -32,6 +32,18 @@ GoZFS currently consists of 2 packages and will eventually consist of three:
 GoZFS provides a custom strace implementation for tracing ZFS ioctls. It is found under `ioctl/trace`
 and can be used to inspect calls by GoZFS or the normal ZFS userspace utilities.
 
+## Stability & Testing
+This is currently alpha-level software. Its implementation and API is still incomplete and subject to change.
+It does work for most standard storage system tasks, but there is minimal documentation. The high-levl interface
+package, `zfs` still remains to be written.
+
+There is automated integration testing against a custom 4.19 kernel with ZoL 0.8 inside
+kvmtool in GitLab CI/Kubernetes. The tests can also be run standalone if you have a working ZoL setup.
+Full matrix testing against ZoL 0.7 on Linux 4.19 and ZoL 0.6 on Linux 4.9 is planned. The test runtime
+cannot be distributed since it contains compiled CDDL and GPLv2 code.
+
+The decoder side of nvlist has a fuzzing harness based on go-fuzz.
+
 ## Not yet implemented
 * Import (missing proper XDR support in nvlist)
 * VDev management (needs reverse-engineered config structures)
