@@ -501,7 +501,7 @@ func Send(name string, options SendOptions) (io.ReadCloser, error) {
 // ReceiveOpts represents all options for the Receive() call
 type ReceiveOpts struct {
 	Origin        string        `nvlist:"origin,omitempty"`
-	SnapshotName  string        `nvlist:"snapname,omitempty"`
+	SnapshotName  string        `nvlist:"snapname"`
 	ReceivedProps *DatasetProps `nvlist:"props"`
 	LocalProps    *DatasetProps `nvlist:"localprops"`
 	HiddenArgs    *struct{}     `nvlist:"hidden_args"` // TODO: Key material belongs here
@@ -510,7 +510,7 @@ type ReceiveOpts struct {
 	// If it is set, BeginRecord also needs to be set to the first currently 312 bytes of the stream
 	Fd          int32  `nvlist:"input_fd"`
 	BeginRecord []byte `nvlist:"begin_record"`
-	CleanupFd   int32  `nvlist:"cleanup_fd"` // Operation gets aborted if this Fd is closed
+	CleanupFd   int32  `nvlist:"cleanup_fd,omitempty"` // Operation gets aborted if this Fd is closed
 	// ActionHandle uint64 `nvlist:"action_handle"` -> Purpose is unknown, zero value is valid, currently not exposed
 
 	// The following are options
@@ -531,6 +531,8 @@ func Receive(name string, reader io.Reader, opts ReceiveOpts) (*ReceiveResult, e
 	if err != nil {
 		return nil, err
 	}
+	defer r.Close()
+	defer w.Close()
 
 	opts.Fd = int32(r.Fd())
 

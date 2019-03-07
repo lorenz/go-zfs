@@ -49,5 +49,11 @@ test:
   script:
     - apt-get update && apt-get -yy install wget
     - wget -nv -O bzImage https://blob.dolansoft.org/public/gozfs-testenv-linux
-    - kvmtool/vm run -m 256m --kernel bzImage -c1 --console virtio -d ioctl -p "init=/testhelper/testhelper"
+    - kvmtool/vm run -m 256m --kernel bzImage -c1 --console virtio -d ioctl -p "init=/testhelper/testhelper zfs.zfs_flags=512"
     - test -e ioctl/successful || exit 1
+  artifacts:
+    untracked: false
+    when: always
+    paths:
+      - ioctl/zfsdebug.log
+    expire_in: 7 days
