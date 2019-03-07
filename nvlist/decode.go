@@ -361,21 +361,21 @@ func (r *nvlistReader) readPairs(v reflect.Value) error {
 		case typeInt16Array, typeUint16Array, typeInt32Array, typeUint32Array, typeInt64Array, typeUint64Array, typeInt8Array, typeUint8Array:
 			var val interface{}
 			switch nvp.Type {
-			case typeInt16:
+			case typeInt16Array:
 				val = make([]int16, nvp.Value_elem)
-			case typeUint16:
+			case typeUint16Array:
 				val = make([]uint16, nvp.Value_elem)
-			case typeInt32:
+			case typeInt32Array:
 				val = make([]int32, nvp.Value_elem)
-			case typeUint32:
+			case typeUint32Array:
 				val = make([]uint32, nvp.Value_elem)
-			case typeInt64:
+			case typeInt64Array:
 				val = make([]int64, nvp.Value_elem)
-			case typeUint64:
+			case typeUint64Array:
 				val = make([]uint64, nvp.Value_elem)
-			case typeInt8:
+			case typeInt8Array:
 				val = make([]int8, nvp.Value_elem)
-			case typeUint8:
+			case typeUint8Array:
 				val = make([]uint8, nvp.Value_elem)
 			default:
 				panic("Array type with no handler (illegal state), check all primitive types are handled")
