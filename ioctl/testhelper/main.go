@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
+	"github.com/ghishadow/color"
 	"golang.org/x/sys/unix"
 )
 
@@ -29,6 +32,9 @@ func main() {
 		}
 		MountSys("tmpfs", "/dev/shm")
 		MountSys("sysfs", "/sys")
+		MountSys("proc", "/proc")
+		color.NoColor = false
+		color.Green("Starting tests")
 		cmd := exec.Command("/ioctl.test", "-test.v")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -41,5 +47,28 @@ func main() {
 			}
 			f.Close()
 		}
+		color.Blue("Tests completed, grabbing filtered ZFS debug messages")
+		debugMessages, err := os.Open("/proc/spl/kstat/zfs/dbgmsg")
+		if err != nil {
+			color.Red("Failed to open debug messages: %v", err)
+			return
+		}
+		out, err := os.Create("zfsdebug.log")
+		if err != nil {
+			color.Red("Failed to open debug artifact")
+			return
+		}
+		defer out.Close()
+		defer debugMessages.Close()
+		scanner := bufio.NewScanner(debugMessages)
+		for scanner.Scan() {
+			line := scanner.Text()
+			fmt.Fprintln(out, line)
+			if strings.Contains(line, "zfs_ioctl.c") {
+				fmt.Println(line)
+			}
+		}
+		out.Sync()
+		out.Close()
 	}
 }
