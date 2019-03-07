@@ -15,6 +15,16 @@ import (
 	"github.com/lunixbochs/struc"
 )
 
+func delimitedBufToString(buf []byte) string {
+	i := 0
+	for ; i < len(buf); i++ {
+		if buf[i] == 0x00 {
+			break
+		}
+	}
+	return string(buf[:i])
+}
+
 func main() {
 	var regs syscall.PtraceRegs
 
@@ -57,6 +67,13 @@ func main() {
 				cmd := &ioctl.Cmd{}
 				if err := struc.UnpackWithOrder(bytes.NewReader(data), cmd, binary.LittleEndian); err != nil {
 					panic(err)
+				}
+				name := delimitedBufToString(cmd.Name[:])
+				if len(name) > 0 {
+					fmt.Printf("name: %v\n", name)
+				}
+				if cmd.Cookie != 0 {
+					fmt.Printf("cookie: %v\n", cmd.Cookie)
 				}
 				/*cmdJSON, err := json.Marshal(cmd)
 				if err != nil {
