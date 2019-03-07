@@ -201,11 +201,11 @@ func (r *nvlistReader) readNvHeader() error {
 func (r *nvlistReader) readPairs(v reflect.Value) error {
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
-		if v.Kind() == reflect.Interface && v.NumMethod() == 0 {
-			val := make(map[string]interface{})
-			v.Set(reflect.ValueOf(val))
-			v = v.Elem()
-		}
+	}
+	if v.Kind() == reflect.Interface && v.NumMethod() == 0 {
+		val := make(map[string]interface{})
+		v.Set(reflect.ValueOf(val))
+		v = v.Elem()
 	}
 	structFieldByName := make(map[string]reflect.Value)
 	if v.Kind() == reflect.Struct {
