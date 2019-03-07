@@ -23,7 +23,7 @@ func NvlistIoctl(fd uintptr, ioctl Ioctl, name string, cmd *Cmd, request interfa
 	}
 	// WARNING: Here be dragons! This is completely outside of Go's safety net and uses various
 	// criticial runtime workarounds to make sure that memory is safely handled
-	dst := make([]byte, 4096)
+	dst := make([]byte, 32*1024)
 	if response != nil {
 		cmd.Nvlist_dst = uint64(uintptr(unsafe.Pointer(&dst[0])))
 		cmd.Nvlist_dst_size = uint64(len(dst))
