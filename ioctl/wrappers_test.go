@@ -120,6 +120,11 @@ func TestSequence(t *testing.T) {
 	if err := Snapshot([]string{"tp1/test5@snap2"}, "tp1", nil); err != nil {
 		t.Error(err)
 	}
+
+	written, err := GetSpaceWritten("tp1/test5", "tp1/test5@snap2")
+	assert.NoError(t, err, "GetSpaceWritten failed")
+	assert.Zero(t, written, "written is not zero for a fresh snapshot")
+
 	n, err = SendSpace("tp1/test5@snap2", SendSpaceOptions{From: "tp1/test5@snap1"})
 	if err != nil {
 		t.Error(err)
