@@ -153,10 +153,12 @@ func TestSequence(t *testing.T) {
 
 	Destroy("tp1/test5@snap2", ObjectTypeAny, false)
 
-	res, err := Receive("tp1", f, ReceiveOpts{SnapshotName: "tp1/test5@snap2"})
-	assert.NoError(t, err, "Failed to receive")
-	assert.Zero(t, res.ErrorFlags, "Non-zero error flags on receive")
-	assert.NotZero(t, res.ReadBytes, "Receive result wrong")
+	w, err := Receive("tp1", ReceiveOpts{SnapshotName: "tp1/test5@snap2"})
+	assert.NoError(t, err, "Failed to start receive")
+	_, err = io.Copy(w, f)
+	assert.NoError(t, err, "Failed to receive data")
+	err = w.WaitAndClose()
+	assert.NoError(t, err, "Failed to complete receive")
 
 	props, err = ObjsetStats("tp1/test5@snap2")
 	assert.NoError(t, err, "Failed to stat received snapshot")

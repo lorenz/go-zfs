@@ -215,3 +215,8 @@ const (
 	ObjectTypeAny
 	ObjectTypeNumtypes
 )
+
+const (
+	ErrorPropClearFailed   = 0x01
+	ErrorPropRestoreFailed = 0x02
+)
