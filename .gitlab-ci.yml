@@ -38,7 +38,7 @@ build-ioctl-tests:
 
 test:
   stage: test
-  image: debian:stretch
+  image: debian:latest
   variables:
     NEEDS_KVM: "true"
   dependencies:
