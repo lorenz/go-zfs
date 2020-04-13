@@ -454,10 +454,19 @@ type SendOptions struct {
 	// From can optionally contain an older snapshot for an incremental send
 	From string `nvlist:"fromsnap,omitempty"`
 
+	// FromBookmark can optionally contain a bookmark which is used to reduce the amount of data sent
+	FromBookmark string `nvlist:"redactbook,omitempty"`
+
 	// These enable individual features for the send stream
 	LargeBlocks bool `nvlist:"largeblockok"`
-	Embed       bool `nvlist:"embedok"`
-	Compress    bool `nvlist:"compress"`
+	// Allows DRR_WRITE_EMBEDDED
+	Embed bool `nvlist:"embedok"`
+	// Allows compressed DRR_WRITE
+	Compress bool `nvlist:"compress"`
+	// Allows raw encrypted records
+	Raw bool `nvlist:"rawok"`
+	// Send a partially received snapshot
+	Saved bool `nvlist:"savedok"`
 
 	// These can optionally be set to resume a transfer (ZoL 0.7+)
 	ResumeObject uint64 `nvlist:"resume_object,omitempty"`
