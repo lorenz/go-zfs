@@ -45,7 +45,7 @@ cannot be distributed since it contains compiled CDDL and GPLv2 code.
 The decoder side of nvlist has a fuzzing harness based on go-fuzz.
 
 ## Not yet implemented
-* Import (missing proper XDR support in nvlist)
+* Import from on-disk labels (missing proper XDR support in nvlist)
 * VDev management (needs reverse-engineered config structures)
 * Feature management (upgrade, enabling, disabling)
 * Diff

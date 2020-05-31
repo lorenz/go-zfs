@@ -179,6 +179,20 @@ func TestSequence(t *testing.T) {
 		t.Error(err)
 	}
 
+	configs, err := PoolConfigs()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := PoolExport("tp1", false, false); err != nil {
+		t.Fatal(err)
+	}
+	importConfig := configs["tp1"].(map[string]interface{})
+
+	if _, err := PoolImport("tp1", importConfig, nil); err != nil {
+		t.Fatal(err)
+	}
+
 	// TODO: Validate that GUID has changed
 
 	if err := Destroy("tp1/test9", ObjectTypeAny, false); err != nil {

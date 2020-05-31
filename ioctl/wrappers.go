@@ -107,30 +107,32 @@ func Init(nodePath string) error {
 }
 
 type VDev struct {
-	IsLog                uint64 `nvlist:"is_log"`
-	SpaceMapObjectNumber uint64 `nvlist:"DTL,omitempty"`
-	AlignmentShift       uint64 `nvlist:"ashift,omitempty"`
-	AllocatableCapacity  uint64 `nvlist:"asize,omitempty"`
-	GUID                 uint64 `nvlist:"guid,omitempty"`
-	ID                   uint64 `nvlist:"id,omitempty"`
-	Path                 string `nvlist:"path"`
-	Type                 string `nvlist:"type"`
-	Children             []VDev `nvlist:"children,omitempty"`
-	L2CacheChildren      []VDev `nvlist:"l2cache,omitempty"`
-	SparesChildren       []VDev `nvlist:"spares,omitempty"`
+	IsLog               uint64 `nvlist:"is_log"`
+	DTL                 uint64 `nvlist:"DTL,omitempty"`
+	AlignmentShift      uint64 `nvlist:"ashift,omitempty"`
+	AllocatableCapacity uint64 `nvlist:"asize,omitempty"`
+	GUID                uint64 `nvlist:"guid,omitempty"`
+	ID                  uint64 `nvlist:"id,omitempty"`
+	Path                string `nvlist:"path"`
+	Type                string `nvlist:"type"`
+	Children            []VDev `nvlist:"children,omitempty"`
+	L2CacheChildren     []VDev `nvlist:"l2cache,omitempty"`
+	SparesChildren      []VDev `nvlist:"spares,omitempty"`
 }
 
 type PoolConfig struct {
-	NumberOfChildren uint64 `nvlist:"vdev_children"`
-	VDevTree         *VDev  `nvlist:"vdev_tree"`
-	Errata           uint64 `nvlist:"errata,omitempty"`
-	HostID           uint64 `nvlist:"hostid,omitempty"`
-	Hostname         string `nvlist:"hostname,omitempty"`
+	Version          uint64 `nvlist:"version,omitempty"`
 	Name             string `nvlist:"name,omitempty"`
-	GUID             uint64 `nvlist:"pool_guid,omitempty"`
 	State            uint64 `nvlist:"state,omitempty"`
 	TXG              uint64 `nvlist:"txg,omitempty"`
-	Version          uint64 `nvlist:"version,omitempty"`
+	GUID             uint64 `nvlist:"pool_guid,omitempty"`
+	Errata           uint64 `nvlist:"errata,omitempty"`
+	Hostname         string `nvlist:"hostname,omitempty"`
+	NumberOfChildren uint64 `nvlist:"vdev_children"`
+	VDevTree         *VDev  `nvlist:"vdev_tree"`
+	HostID           uint64 `nvlist:"hostid,omitempty"`
+	// Delta: -hostid, +top_guid, +guid, +features_for_read
+	FeaturesForRead map[string]bool `nvlist:"features_for_read"`
 }
 
 func delimitedBufToString(buf []byte) string {
@@ -198,6 +200,30 @@ func PoolConfigs() (map[string]interface{}, error) {
 	res := make(map[string]interface{})
 	err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_POOL_CONFIGS, "", cmd, nil, res, nil)
 	return res, err
+}
+
+// PoolImport imports a pool
+func PoolImport(name string, config map[string]interface{}, props map[string]interface{}) (map[string]interface{}, error) {
+	cmd := &Cmd{}
+	cmd.Guid = config["pool_guid"].(uint64)
+	outConfig := make(map[string]interface{})
+	err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_POOL_IMPORT, name, cmd, props, outConfig, config)
+	if cmd.Cookie != 0 {
+		return nil, unix.Errno(cmd.Cookie)
+	}
+	return outConfig, err
+}
+
+// PoolExport exports a pool
+func PoolExport(name string, force, hardForce bool) error {
+	cmd := &Cmd{}
+	if force {
+		cmd.Cookie = 1
+	}
+	if hardForce {
+		cmd.Guid = 1
+	}
+	return NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_POOL_EXPORT, name, cmd, nil, nil, nil)
 }
 
 // Promote replaces a ZFS filesystem with a clone of itself.
