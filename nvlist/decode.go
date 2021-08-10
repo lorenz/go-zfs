@@ -380,10 +380,8 @@ func (r *nvlistReader) readPairs(v reflect.Value) error {
 			default:
 				panic("Array type with no handler (illegal state), check all primitive types are handled")
 			}
-			for i := 0; i < int(nvp.Value_elem); i++ {
-				if err := nvpr.readInt(reflect.ValueOf(val).Index(i).Interface()); err != nil {
-					return err
-				}
+			if err := binary.Read(&nvpr, nvpr.nvlist.endianness, val); err != nil {
+				return err
 			}
 			setPrimitive(val)
 
