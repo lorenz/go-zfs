@@ -195,6 +195,11 @@ func TestSequence(t *testing.T) {
 
 	// TODO: Validate that GUID has changed
 
+	_, err = PoolStats("tp1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	if err := Destroy("tp1/test9", ObjectTypeAny, false); err != nil {
 		t.Error(err)
 	}

@@ -202,6 +202,20 @@ func PoolConfigs() (map[string]interface{}, error) {
 	return res, err
 }
 
+// PoolStats gets statistics from a pool
+func PoolStats(name string) (map[string]interface{}, error) {
+	cmd := &Cmd{}
+	res := make(map[string]interface{})
+	err := NvlistIoctl(zfsHandle.Fd(), ZFS_IOC_POOL_STATS, name, cmd, nil, res, nil)
+	if err != nil {
+		return nil, err
+	}
+	if cmd.Cookie != 0 {
+		return nil, syscall.Errno(cmd.Cookie)
+	}
+	return res, nil
+}
+
 // PoolImport imports a pool
 func PoolImport(name string, config map[string]interface{}, props map[string]interface{}) (map[string]interface{}, error) {
 	cmd := &Cmd{}
