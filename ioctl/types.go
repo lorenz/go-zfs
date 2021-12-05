@@ -94,7 +94,7 @@ type DRRBegin struct {
 type Ioctl uint32
 
 const (
-	ZFS_IOC_POOL_CREATE Ioctl = ('Z' << 8) + iota
+	ZFS_IOC_POOL_CREATE Ioctl = ZFS_IOC_FIRST + iota
 	ZFS_IOC_POOL_DESTROY
 	ZFS_IOC_POOL_IMPORT
 	ZFS_IOC_POOL_EXPORT
@@ -166,20 +166,19 @@ const (
 	ZFS_IOC_DESTROY_BOOKMARKS
 	ZFS_IOC_RECV_NEW
 	ZFS_IOC_POOL_SYNC
+)
 
-	/*
-	 * Linux - 3/64 numbers reserved.
-	 */
-	ZFS_IOC_LINUX Ioctl = ('Z' << 8) + 0x80 + iota
-	ZFS_IOC_EVENTS_NEXT
-	ZFS_IOC_EVENTS_CLEAR
-	ZFS_IOC_EVENTS_SEEK
-
-	/*
-	 * FreeBSD - 1/64 numbers reserved.
-	 */
-	ZFS_IOC_FREEBSD Ioctl = ('Z' << 8) + 0xC0 + iota
-
+const (
+	//	Per-platform (Optional) - 8/128 numbers reserved.
+	ZFS_IOC_PLATFORM     = ZFS_IOC_FIRST + 0x80 + iota
+	ZFS_IOC_EVENTS_NEXT  // 0x81 (Linux)
+	ZFS_IOC_EVENTS_CLEAR // 0x82 (Linux)
+	ZFS_IOC_EVENTS_SEEK  // 0x83 (Linux)
+	ZFS_IOC_NEXTBOOT     // 0x84 (FreeBSD)
+	ZFS_IOC_JAIL         // 0x85 (FreeBSD)
+	ZFS_IOC_UNJAIL       // 0x86 (FreeBSD)
+	ZFS_IOC_SET_BOOTENV  // 0x87
+	ZFS_IOC_GET_BOOTENV  // 0x88
 	ZFS_IOC_LAST
 )
 
